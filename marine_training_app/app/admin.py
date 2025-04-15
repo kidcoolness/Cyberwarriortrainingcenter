@@ -1,10 +1,10 @@
 from flask import Blueprint, render_template, request, redirect, url_for, flash
 from flask_login import login_required, current_user
-from app.models import db, User, Task, Course, CourseTask, CourseEnrollment
+from marine_training_app.app.models import db, User, Task, Course, CourseTask, CourseEnrollment
 from flask_wtf import FlaskForm
 from wtforms import StringField, TextAreaField, SubmitField
 from wtforms.validators import DataRequired, Optional
-from app.forms import TaskForm, OrgAssignmentForm
+from marine_training_app.app.forms import TaskForm, OrgAssignmentForm
 import json
 admin = Blueprint("admin", __name__)
 
@@ -116,7 +116,7 @@ def delete_course(course_id):
     flash("Course deleted successfully!", "success")
     return redirect(url_for("admin.manage_courses"))
 
-from app.forms import TaskForm
+from marine_training_app.app.forms import TaskForm
 
 @admin.route("/create_task/<int:course_id>", methods=["GET", "POST"])
 @login_required
@@ -164,7 +164,7 @@ def create_task(course_id):
 
     return render_template("admin/create_task.html", form=form)
 
-from app.forms import TaskForm
+from marine_training_app.app.forms import TaskForm
 
 @admin.route("/edit_task/<int:task_id>", methods=["GET", "POST"])
 @login_required

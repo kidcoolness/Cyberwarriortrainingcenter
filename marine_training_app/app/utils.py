@@ -1,6 +1,6 @@
 # utils.py
 
-from app.models import TaskAssignment, CourseTask
+from marine_training_app.app.models import TaskAssignment, CourseTask
 
 def calculate_progress(user_id, course_id):
     course_tasks = CourseTask.query.filter_by(course_id=course_id).all()

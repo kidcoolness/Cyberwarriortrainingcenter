@@ -1,16 +1,16 @@
 from flask import Blueprint, render_template, request, redirect, url_for, flash
 from flask_login import login_required, current_user
-from app.admin import admin
-from app.forms import ProfileUpdateForm, AnswerForm, MCQForm, TrainerAnswerForm
-from app.models import db, User, CourseEnrollment, CourseTask, TaskAssignment, Course, Task
+from marine_training_app.app.admin import admin
+from marine_training_app.app.forms import ProfileUpdateForm, AnswerForm, MCQForm, TrainerAnswerForm
+from marine_training_app.app.models import db, User, CourseEnrollment, CourseTask, TaskAssignment, Course, Task
 from collections import defaultdict
 import json
 from sqlalchemy.orm import joinedload
-from app.utils import calculate_progress
+from marine_training_app.app.utils import calculate_progress
 import csv
 from io import StringIO
 from flask import make_response
-from app.models import Submission, TrainerReview
+from marine_training_app.app.models import Submission, TrainerReview
 
 # Define a Blueprint
 main = Blueprint("main", __name__)
