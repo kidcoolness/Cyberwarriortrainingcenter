@@ -1,0 +1,150 @@
+{% extends "base.html" %}
+{% block title %}Course – {{ course.name }}{% endblock %}
+
+{% block content %}
+<h1>{{ course.name }}</h1>
+<p>{{ course.description }}</p>
+<h1 style="color:red">🔥 THIS IS course.html 🔥</h1>
+
+<div class="row mt-4">
+  <!-- LEFT SIDEBAR: Task Navigation -->
+  <div class="col-md-4">
+    <div class="border p-3" style="max-height: 600px; overflow-y: auto;">
+      {% for module_label, module in task_hierarchy.items() %}
+        <div class="mb-2">
+          <button class="btn btn-outline-primary w-100 text-start" data-bs-toggle="collapse" data-bs-target="#mod-{{ module_label | replace('.', '-') }}">
+            📘 {{ module_label }} – {{ module.title }}
+          </button>
+          <div class="collapse" id="mod-{{ module_label | replace('.', '-') }}">
+            {% for section_label, section in module.sections.items() %}
+              <div class="ms-3 mt-2">
+                <button class="btn btn-outline-secondary w-100 text-start" data-bs-toggle="collapse" data-bs-target="#sec-{{ section_label | replace('.', '-') }}">
+                  📖 {{ section_label }} – {{ section.title }}
+                </button>
+                <div class="collapse" id="sec-{{ section_label | replace('.', '-') }}">
+                  <ul class="list-group list-group-flush mt-1 ms-2">
+                    {% for task in section.tasks %}
+                    <div id="task-{{ task.id }}" class="ms-5">
+                      <a href="#" class="task-link" data-task-url="/task/{{ task.id }}">{{ task.label }} – {{ task.title }}</a>
+                      {{ task.label }} – {{ task.title }}
+                      </a>
+                      {% if task.id in completed_tasks %}
+                      <span class="text-success">✅</span>
+                      {% endif %}
+                      </div>
+                    {% endfor %}
+                  </ul>
+                </div>
+              </div>
+            {% endfor %}
+          </div>
+        </div>
+      {% endfor %}
+    </div>
+
+    <!-- PROGRESS BAR -->
+    <div class="mt-4">
+      <label>Progress:</label>
+      <div class="progress">
+        <div class="progress-bar bg-success" role="progressbar" style="width: {{ progress }}%;" aria-valuenow="{{ progress }}" aria-valuemin="0" aria-valuemax="100">
+          {{ progress }}%
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- RIGHT: Task Display Pane -->
+  <div class="col-md-8" id="task-content">
+    <p class="text-muted">👉 Select a task from the left to begin.</p>
+  </div>
+</div>
+{% endblock %}
+
+
+{% block scripts %}
+<script>
+  document.addEventListener('DOMContentLoaded', function () {
+    const taskLinks = document.querySelectorAll('.task-link');
+    const contentPane = document.getElementById('task-content');
+
+    // Load and inject task HTML
+    function loadTask(url) {
+      fetch(url)
+        .then(res => res.text())
+        .then(html => {
+          contentPane.innerHTML = html;
+          window.history.pushState({}, '', url); // optional: update browser URL
+          bindForms(url); // 🔁 bind form submit to stay inside pane
+        });
+    }
+
+    // Re-bind form inside task content
+    function bindForms() {
+      const form = document.getElementById('answer-form');
+      if (form) {
+        form.addEventListener('submit', function (e) {
+          e.preventDefault();
+          const formData = new FormData(form);
+
+          fetch(window.location.href, {
+            method: 'POST',
+            body: formData
+          })
+          .then(res => {
+            if (res.redirected) {
+              // If redirect is triggered by Flask route
+              window.location.href = res.url;
+            } else {
+              return res.text();
+            }
+          })
+          .then(html => {
+            if (html) {
+              document.getElementById('task-content').innerHTML = html;
+              bindForms(); // rebind after loading new content
+            }
+          });
+        });
+      }
+    }
+
+
+    // 🔁 Optional: Refresh the course sidebar to show updated checkmarks
+    function refreshSidebar() {
+      const currentCourseId = window.location.pathname.split("/")[2];
+      fetch(`/course/${currentCourseId}?partial=1`)
+        .then(res => res.text())
+        fetch(`/course/${courseId}?partial=1`)
+        .then(res => res.text())
+        .then(html => {
+          document.querySelector('#sidebar').innerHTML = html;
+        
+          const newSidebar = tempDiv.querySelector('.col-md-4');
+          if (newSidebar) {
+            document.querySelector('.col-md-4').innerHTML = newSidebar.innerHTML;
+            bindTaskLinks(); // 🔁 rebinding after DOM update
+          }
+        });
+    }
+
+    // Initial binding of task links
+    function bindTaskLinks() {
+      const taskLinks = document.querySelectorAll('.task-link');
+      taskLinks.forEach(link => {
+        link.addEventListener('click', function (e) {
+          e.preventDefault();
+          const url = link.dataset.taskUrl;
+          loadTask(url);
+        });
+      });
+    }
+
+    bindTaskLinks();  // First load
+  });
+</script>
+{% endblock %}
+
+
+
+
+

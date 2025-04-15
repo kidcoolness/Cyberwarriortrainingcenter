@@ -1,0 +1,36 @@
+{% extends 'base.html' %}
+{% block title %}Course Management{% endblock %}
+{% block content %}
+
+<h1>Course Management</h1>
+
+<!-- Create Course Button -->
+<a href="{{ url_for('admin.create_course') }}" class="btn btn-success mb-3">Create New Course</a>
+
+<!-- Course List -->
+<h2>All Courses</h2>
+<table class="table table-striped">
+    <thead>
+        <tr>
+            <th>Course Name</th>
+            <th>Description</th>
+            <th>Actions</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for course in courses %}
+        <tr>
+            <td>{{ course.name }}</td>
+            <td>{{ course.description }}</td>
+            <td>
+                <a href="{{ url_for('admin.edit_course', course_id=course.id) }}" class="btn btn-warning btn-sm">Edit</a>
+                <form method="POST" action="{{ url_for('admin.delete_course', course_id=course.id) }}" style="display:inline;">
+                    <button type="submit" class="btn btn-danger btn-sm" onclick="return confirm('Are you sure?');">Delete</button>
+                </form>
+            </td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+
+{% endblock %}

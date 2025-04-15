@@ -1,0 +1,134 @@
+{% extends 'base.html' %}
+{% block title %}Edit Course - {{ course.name }}{% endblock %}
+{% block content %}
+
+<h1>Edit Course: {{ course.name }}</h1>
+
+<!-- Update Course Info -->
+<form method="POST">
+  {{ form.hidden_tag() }}
+  <div class="mb-3">
+    {{ form.name.label(class="form-label") }}
+    {{ form.name(class="form-control") }}
+  </div>
+  <div class="mb-3">
+    {{ form.description.label(class="form-label") }}
+    {{ form.description(class="form-control") }}
+  </div>
+  <button type="submit" class="btn btn-success">Save Changes</button>
+  <a href="{{ url_for('admin.manage_courses') }}" class="btn btn-secondary">Cancel</a>
+</form>
+
+<hr>
+
+<!-- Create Module -->
+<h3>Create Module</h3>
+<form method="POST" action="{{ url_for('admin.create_module', course_id=course.id) }}">
+  <input type="text" name="label" placeholder="e.g. 1.0" class="form-control mb-2" required>
+  <input type="text" name="title" placeholder="Module Title" class="form-control mb-2" required>
+  <button type="submit" class="btn btn-primary">Add Module</button>
+</form>
+
+<hr>
+
+<!-- Create Section -->
+<h3>Create Section</h3>
+<form method="POST" action="{{ url_for('admin.create_section', course_id=course.id) }}">
+  <label for="module_label" class="form-label">Parent Module</label>
+  <select name="module_label" class="form-control mb-2" required>
+    <option value="">-- Select a Module --</option>
+    {% for task in tasks if task.is_section_header and task.label.endswith('.0') %}
+      <option value="{{ task.label }}">{{ task.label }} - {{ task.title }}</option>
+    {% endfor %}
+  </select>
+  <input type="text" name="label" placeholder="e.g. 1.1" class="form-control mb-2" required>
+  <input type="text" name="title" placeholder="Section Title" class="form-control mb-2" required>
+  <button type="submit" class="btn btn-secondary">Add Section</button>
+</form>
+
+
+<hr>
+
+<!-- Create Task -->
+<h3>Create Task</h3>
+<form method="POST" action="{{ url_for('admin.create_task', course_id=course.id) }}">
+  {{ task_form.hidden_tag() }}
+
+  <div class="mb-2">
+    <label for="section_label" class="form-label">Section</label>
+    <select name="section_label" class="form-control" required>
+      <option value="">-- Select a Section --</option>
+      {% for t in tasks if t.is_section_header and not t.label.endswith('.0') %}
+        <option value="{{ t.label }}">{{ t.label }} - {{ t.title }}</option>
+      {% endfor %}
+    </select>
+  </div>
+
+  <div class="mb-2">
+    {{ task_form.label.label(class="form-label") }}
+    {{ task_form.label(class="form-control") }}
+  </div>
+
+  <div class="mb-2">
+    {{ task_form.title.label(class="form-label") }}
+    {{ task_form.title(class="form-control") }}
+  </div>
+
+  <div class="mb-2">
+    {{ task_form.description.label(class="form-label") }}
+    {{ task_form.description(class="form-control", rows=3) }}
+  </div>
+
+  <div class="mb-2">
+    {{ task_form.grading_type.label(class="form-label") }}
+    {{ task_form.grading_type(class="form-select") }}
+  </div>
+
+  <div class="mb-2">
+    {{ task_form.correct_answer.label(class="form-label") }}
+    {{ task_form.correct_answer(class="form-control") }}
+  </div>
+
+  <div class="mb-2">
+    {{ task_form.mcq_choices.label(class="form-label") }}
+    {{ task_form.mcq_choices(class="form-control", rows=4) }}
+    <small class="form-text text-muted">Enter one option per line (MCQ only).</small>
+  </div>
+
+  <div class="mb-2">
+    {{ task_form.tryhackme_room.label(class="form-label") }}
+    {{ task_form.tryhackme_room(class="form-control") }}
+  </div>
+
+  <div class="form-check mb-2">
+    {{ task_form.is_section_header(class="form-check-input") }}
+    {{ task_form.is_section_header.label(class="form-check-label") }}
+  </div>
+
+  <div class="form-check mb-2">
+    {{ task_form.requires_upload(class="form-check-input") }}
+    {{ task_form.requires_upload.label(class="form-check-label") }}
+  </div>
+
+  <div class="mb-3">
+    {{ task_form.submit(class="btn btn-success") }}
+  </div>
+</form>
+
+<hr>
+
+<!-- View Hierarchy -->
+<h3>Course Hierarchy</h3>
+<div class="border p-3" style="max-height: 600px; overflow-y: auto;">
+  {% for task in tasks %}
+    {% if task.label.endswith('.0') %}
+      <strong>📘 {{ task.label }} {{ task.title }}</strong><br>
+    {% elif task.is_section_header %}
+      <span class="ms-3">📖 {{ task.label }} {{ task.title }}</span><br>
+    {% else %}
+      <span class="ms-5">🔗 <a href="{{ url_for('admin.edit_task', task_id=task.id) }}">{{ task.label }} - {{ task.title }}</a></span><br>
+    {% endif %}
+  {% endfor %}
+</div>
+
+{% endblock %}

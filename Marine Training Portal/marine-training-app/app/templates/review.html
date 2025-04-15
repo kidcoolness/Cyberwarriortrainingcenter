@@ -1,0 +1,19 @@
+{% extends 'base.html' %}
+{% block title %}Review Submissions{% endblock %}
+{% block content %}
+<h1>Review Pending Submissions</h1>
+<ul>
+    {% for submission in submissions %}
+    <li>
+        <strong>Task:</strong> {{ submission.task.title }} ({{ submission.user.name }})
+        <p>{{ submission.submission_text }}</p>
+        <form action="{{ url_for('main.review_submission', submission_id=submission.id) }}" method="POST">
+            <label>Feedback:</label>
+            <textarea name="feedback"></textarea>
+            <button type="submit" name="approved" value="true">Approve</button>
+            <button type="submit" name="approved" value="false">Reject</button>
+        </form>
+    </li>
+    {% endfor %}
+</ul>
+{% endblock %}

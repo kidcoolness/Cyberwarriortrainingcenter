@@ -1,0 +1,380 @@
+from flask import Blueprint, render_template, request, redirect, url_for, flash
+from app.models import db, User, Task, Submission, TrainerReview, Course, CourseEnrollment, CourseTask, Task, TaskAssignment
+from flask_login import login_required, current_user
+from app.admin import admin
+
+# Define a Blueprint
+main = Blueprint("main", __name__)
+
+# Home route (Login required)
+@main.route("/")
+@login_required
+def landing_page():
+    return render_template("landing.html")
+
+@main.route("/tasks")
+@login_required
+def task_list():
+    tasks = Task.query.all()
+    return render_template("task.html", tasks=tasks)  
+
+@main.route("/task/<int:task_id>", methods=["GET", "POST"])
+@login_required
+def task_detail(task_id):
+    task = Task.query.get_or_404(task_id)
+
+    # ✅ Ensure the Marine is assigned the task
+    task_assignment = TaskAssignment.query.filter_by(user_id=current_user.id, task_id=task_id).first()
+
+    # ✅ If the Marine has no assignment, automatically assign them the task
+    if not task_assignment:
+        flash("You were not previously assigned this task, but it has now been added.", "info")
+        task_assignment = TaskAssignment(user_id=current_user.id, task_id=task_id, status="incomplete")
+        db.session.add(task_assignment)
+        db.session.commit()
+
+    # ✅ Retrieve the course ID for redirection
+    course_task = CourseTask.query.filter_by(task_id=task_id).first()
+    course_id = course_task.course_id if course_task else None
+
+    # ✅ Handle task completion
+    if request.method == "POST":
+        task_assignment.status = "completed"
+        db.session.commit()
+        flash("Task marked as completed!", "success")
+
+        return redirect(url_for("main.course_page", course_id=course_id))
+
+    return render_template("task.html", task=task, task_assignment=task_assignment, course_id=course_id)
+
+# Submit a task
+@main.route("/submit/<int:task_id>", methods=["POST"])
+@login_required
+def submit_task(task_id):
+    submission_text = request.form.get("submission_text")
+    new_submission = Submission(
+        user_id=current_user.id,
+        task_id=task_id,
+        submission_text=submission_text,
+        status="pending"
+    )
+    db.session.add(new_submission)
+    db.session.commit()
+    return redirect(url_for("main.dashboard"))
+
+# Trainer review submission
+@main.route("/review/<int:submission_id>", methods=["POST"])
+@login_required
+def review_submission(submission_id):
+    if current_user.role not in ["trainer", "admin"]:
+        return "Unauthorized", 403
+
+    submission = Submission.query.get_or_404(submission_id)
+    feedback = request.form.get("feedback")
+    approved = request.form.get("approved") == "true"
+
+    review = TrainerReview(
+        trainer_id=current_user.id,
+        submission_id=submission_id,
+        feedback=feedback,
+        approved=approved
+    )
+    submission.status = "approved" if approved else "rejected"
+
+    db.session.add(review)
+    db.session.commit()
+    return redirect(url_for("main.dashboard"))
+
+@main.route("/assign_task/<int:task_id>", methods=["POST"])
+@login_required
+def assign_task(task_id):
+    if current_user.role not in ["trainer", "admin"]:  # Only trainers can assign tasks
+        flash("Access denied: Trainers only.", "danger")
+        return redirect(url_for("main.dashboard"))
+
+    user_id = request.form["user_id"]
+    existing_assignment = TaskAssignment.query.filter_by(user_id=user_id, task_id=task_id).first()
+
+    if existing_assignment:
+        flash("This Marine is already assigned to this task.", "warning")
+    else:
+        new_assignment = TaskAssignment(user_id=user_id, task_id=task_id)
+        db.session.add(new_assignment)
+        db.session.commit()
+        flash("Task assigned successfully!", "success")
+
+    return redirect(url_for("main.dashboard"))
+
+@main.route("/complete_task/<int:task_id>", methods=["POST"])
+@login_required
+def complete_task(task_id):
+    task_assignment = TaskAssignment.query.filter_by(user_id=current_user.id, task_id=task_id).first()
+
+    if not task_assignment:
+        flash("You have not been assigned this task.", "danger")
+        return redirect(url_for("main.dashboard"))
+
+    # ✅ Mark the task as completed
+    task_assignment.status = "completed"
+    db.session.commit()
+    
+    flash("Task marked as completed!", "success")
+    return redirect(url_for("main.dashboard"))
+
+@main.route("/dashboard")
+@login_required
+def dashboard():
+    if current_user.role == "admin":
+        return redirect(url_for("admin.dashboard"))
+    elif current_user.role == "trainer":
+        return redirect(url_for("main.trainer_dashboard"))
+
+    enrollments = CourseEnrollment.query.filter_by(marine_id=current_user.id).all()
+    completed_courses = [e.course for e in enrollments if e.completed]
+
+    return render_template("dashboard.html", enrollments=enrollments, completed_courses=completed_courses)
+
+@main.route("/enroll_marine/<int:marine_id>/<int:course_id>", methods=["POST"])
+@login_required
+def enroll_marine(marine_id, course_id):
+    if current_user.role not in ["trainer", "admin"]:
+        flash("Access denied: Trainers only.", "danger")
+        return redirect(url_for("main.dashboard"))
+
+    existing_enrollment = CourseEnrollment.query.filter_by(marine_id=marine_id, course_id=course_id).first()
+    if existing_enrollment:
+        flash("Marine is already enrolled in this course.", "warning")
+    else:
+        new_enrollment = CourseEnrollment(marine_id=marine_id, course_id=course_id)
+        db.session.add(new_enrollment)
+        db.session.commit()
+        flash("Marine enrolled successfully!", "success")
+
+    return redirect(url_for("main.dashboard"))
+
+@main.route("/course/<int:course_id>")
+@login_required
+def course_page(course_id):
+    enrollment = CourseEnrollment.query.filter_by(marine_id=current_user.id, course_id=course_id).first()
+    if not enrollment:
+        flash("You are not enrolled in this course.", "danger")
+        return redirect(url_for("main.dashboard"))
+
+    course = Course.query.get_or_404(course_id)
+    tasks = CourseTask.query.filter_by(course_id=course_id).order_by(CourseTask.sequence).all()
+
+    # ✅ Retrieve completed task IDs as a list
+    completed_tasks = [
+        task_assignment.task_id for task_assignment in TaskAssignment.query.filter_by(
+            user_id=current_user.id, status="completed"
+        ).join(CourseTask, CourseTask.task_id == TaskAssignment.task_id)
+        .filter(CourseTask.course_id == course_id).all()
+    ]
+    
+    total_tasks = len(tasks)
+
+    # ✅ Calculate completion percentage
+    progress = (len(completed_tasks) / total_tasks * 100) if total_tasks > 0 else 0
+    enrollment.progress = round(progress, 1)
+
+    # ✅ Mark course as completed if all tasks are done
+    if total_tasks > 0 and len(completed_tasks) == total_tasks:
+        enrollment.completed = True
+        db.session.commit()
+        flash(f"✅ Course '{course.name}' marked as completed!", "success")
+
+   
+    return render_template("course.html", course=course, tasks=tasks, completed_tasks=completed_tasks, progress=enrollment.progress)
+
+@main.route("/trainer")
+@login_required
+def trainer_dashboard():
+    if current_user.role not in ["trainer", "admin"]:
+        flash("Access denied: Trainers only.", "danger")
+        return redirect(url_for("main.dashboard"))
+    return render_template("trainer_dashboard.html")
+
+@main.route("/training_panel")
+@login_required
+def training_panel():
+    if current_user.role not in ["trainer", "admin"]:  # ✅ Allow Admins and Trainers
+        flash("Access denied: Trainers and Admins only.", "danger")
+        return redirect(url_for("main.dashboard"))
+
+    marines = User.query.filter(User.role.in_(["marine", "trainer"])).all()  # ✅ Include Trainers
+    courses = Course.query.all()
+    enrollments = db.session.query(CourseEnrollment, User, Course).join(User, CourseEnrollment.marine_id == User.id).join(Course, CourseEnrollment.course_id == Course.id).all()
+
+    return render_template("training_panel.html", marines=marines, courses=courses, enrollments=enrollments)
+
+@main.route("/enroll_marines", methods=["POST"])
+
+@login_required
+def enroll_marines():
+    if current_user.role not in ["trainer", "admin"]:
+        flash("Access denied: Trainers only.", "danger")
+        return redirect(url_for("main.dashboard"))
+
+    marine_ids = request.form.getlist("marine_ids")
+    course_id = request.form["course_id"]
+
+    # ✅ Get all tasks associated with this course
+    course_tasks = CourseTask.query.filter_by(course_id=course_id).all()
+    
+    enrolled_marine_names = []
+    completed_marine_names = []
+
+    for marine_id in marine_ids:
+        existing_enrollment = CourseEnrollment.query.filter_by(marine_id=marine_id, course_id=course_id).first()
+        
+        # ✅ If Marine is already enrolled, prevent re-enrollment
+        if existing_enrollment:
+            if existing_enrollment.completed:
+                completed_marine_names.append(User.query.get(marine_id).name)
+            else:
+                enrolled_marine_names.append(User.query.get(marine_id).name)
+            continue  # Skip already enrolled Marines
+
+        # ✅ Enroll Marine in course
+        new_enrollment = CourseEnrollment(marine_id=marine_id, course_id=course_id)
+        db.session.add(new_enrollment)
+
+        # ✅ Assign all tasks in the course to the Marine
+        for course_task in course_tasks:
+            task_assignment = TaskAssignment(user_id=marine_id, task_id=course_task.task_id, status="incomplete")
+            db.session.add(task_assignment)
+
+    db.session.commit()
+
+    # ✅ Show appropriate messages
+    if enrolled_marine_names:
+        flash(f"The following Marines are already enrolled in this course: {', '.join(enrolled_marine_names)}", "warning")
+    if completed_marine_names:
+        flash(f"The following Marines have already completed this course: {', '.join(completed_marine_names)}", "danger")
+    
+    if not enrolled_marine_names and not completed_marine_names:
+        flash("Marines enrolled successfully and assigned all course tasks!", "success")
+
+    return redirect(url_for("main.training_panel"))
+
+@main.route("/my_courses")
+@login_required
+def my_courses():
+    if current_user.role != "marine":
+        flash("Access denied: Marines only.", "danger")
+        return redirect(url_for("main.dashboard"))
+
+    enrollments = CourseEnrollment.query.filter_by(marine_id=current_user.id).all()
+    
+    # ✅ Calculate progress for each enrolled course
+    course_progress = []
+    for enrollment in enrollments:
+        total_tasks = CourseTask.query.filter_by(course_id=enrollment.course_id).count()
+        completed_tasks = TaskAssignment.query.filter_by(user_id=current_user.id, status="completed").join(
+            CourseTask, CourseTask.task_id == TaskAssignment.task_id
+        ).filter(CourseTask.course_id == enrollment.course_id).count()
+
+        progress = (completed_tasks / total_tasks * 100) if total_tasks > 0 else 0
+        course_progress.append({"course": enrollment.course, "progress": round(progress, 1)})
+
+    return render_template("my_courses.html", course_progress=course_progress)
+
+@main.route("/disenroll_marine/<int:marine_id>/<int:course_id>", methods=["POST"])
+@login_required
+def disenroll_marine(marine_id, course_id):
+    if current_user.role not in ["trainer", "admin"]:
+        flash("Access denied: Trainers only.", "danger")
+        return redirect(url_for("main.dashboard"))
+
+    enrollment = CourseEnrollment.query.filter_by(marine_id=marine_id, course_id=course_id).first()
+    if enrollment:
+        # ✅ Fetch all related task assignments and delete them individually
+        course_tasks = CourseTask.query.filter_by(course_id=course_id).all()
+        for course_task in course_tasks:
+            task_assignment = TaskAssignment.query.filter_by(user_id=marine_id, task_id=course_task.task_id).first()
+            if task_assignment:
+                db.session.delete(task_assignment)
+
+        # ✅ Remove the enrollment record
+        db.session.delete(enrollment)
+        db.session.commit()
+        flash("Marine has been disenrolled from the course.", "success")
+    else:
+        flash("Marine is not enrolled in this course.", "warning")
+
+    return redirect(url_for("main.training_panel"))
+
+# @admin.route("/admin/create_course", methods=["GET", "POST"])
+# @login_required
+# def create_course():
+#     if current_user.role != "admin":
+#         flash("Access denied: Admins only.", "danger")
+#         return redirect(url_for("main.dashboard"))
+
+#     if request.method == "POST":
+#         name = request.form["name"]
+#         description = request.form["description"]
+#         new_course = Course(name=name, description=description)
+#         db.session.add(new_course)
+#         db.session.commit()
+#         flash("Course created successfully!", "success")
+#         return redirect(url_for("admin.manage_courses"))
+
+#     return render_template("admin/create_course.html")
+
+@admin.route("/admin/create_task/<int:course_id>", methods=["GET", "POST"])
+@login_required
+def create_task(course_id):
+    if current_user.role != "admin":
+        flash("Access denied: Admins only.", "danger")
+        return redirect(url_for("main.dashboard"))
+
+    course = Course.query.get_or_404(course_id)
+
+    if request.method == "POST":
+        title = request.form["title"]
+        description = request.form["description"]
+        grading_type = request.form["grading_type"]
+        requires_upload = request.form.get("requires_upload") == "on"
+
+        new_task = Task(title=title, description=description, grading_type=grading_type, requires_upload=requires_upload)
+        db.session.add(new_task)
+        db.session.commit()
+
+        # Add task to course
+        course_task = CourseTask(course_id=course.id, task_id=new_task.id, sequence=CourseTask.query.filter_by(course_id=course.id).count() + 1)
+        db.session.add(course_task)
+        db.session.commit()
+
+        flash("Task created successfully!", "success")
+        return redirect(url_for("admin.manage_courses"))
+
+    return render_template("admin/create_task.html", course=course)
+
+@main.route("/submit_answer/<int:task_id>", methods=["POST"])
+@login_required
+def submit_answer(task_id):
+    task = Task.query.get_or_404(task_id)
+
+    # ✅ Ensure the task is auto-graded
+    if task.grading_type != "auto":
+        flash("This task is not auto-graded.", "danger")
+        return redirect(url_for("main.task_detail", task_id=task_id))
+
+    submitted_answer = request.form["submitted_answer"].strip().lower()
+    correct_answer = task.correct_answer.strip().lower() if task.correct_answer else ""
+
+    task_assignment = TaskAssignment.query.filter_by(user_id=current_user.id, task_id=task_id).first()
+    if not task_assignment:
+        flash("You have not been assigned this task.", "danger")
+        return redirect(url_for("main.dashboard"))
+
+    # ✅ Auto-Grading Logic
+    if submitted_answer == correct_answer:
+        task_assignment.status = "completed"
+        db.session.commit()
+        flash("✅ Correct! Task marked as completed.", "success")
+    else:
+        flash("❌ Incorrect answer. Try again.", "danger")
+
+    return redirect(url_for("main.task_detail", task_id=task_id))

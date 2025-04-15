@@ -1,0 +1,21 @@
+<div class="border p-3" style="max-height: 600px; overflow-y: auto;">
+    {% for module_label, module in task_hierarchy.items() %}
+      <div>
+        <strong>📘 {{ module_label }} – {{ module.title }}</strong>
+      </div>
+      {% for section_label, section in module.sections.items() %}
+        <div class="ms-3">📖 {{ section_label }} – {{ section.title }}</div>
+        {% for task in section.tasks %}
+          <div class="ms-5">
+            <a href="#" class="task-link text-decoration-none" data-task-url="{{ url_for('main.task_detail', task_id=task.id) }}">
+              {{ task.label }} – {{ task.title }}
+            </a>
+            {% if task.id in completed_tasks %}
+              <span class="text-success">✅</span>
+            {% endif %}
+          </div>
+        {% endfor %}
+      {% endfor %}
+    {% endfor %}
+  </div>
+  

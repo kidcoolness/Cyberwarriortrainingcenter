@@ -1,0 +1,33 @@
+{% extends 'base.html' %}
+{% block title %}Dashboard{% endblock %}
+{% block content %}
+
+<h1>Dashboard</h1>
+
+<h2>My Active Courses</h2>
+{% if active_courses %}
+    <ul>
+        {% for course in active_courses %}
+        <li>
+            <a href="{{ url_for('main.course_page', course_id=course.id) }}">
+                {{ course.name }}
+            </a>
+        </li>
+        {% endfor %}
+    </ul>
+{% else %}
+    <p>You are not enrolled in any courses.</p>
+{% endif %}
+
+<h2>Completed Courses</h2>
+{% if completed_courses %}
+    <ul>
+        {% for course in completed_courses %}
+        <li>{{ course.name }} ✅</li>
+        {% endfor %}
+    </ul>
+{% else %}
+    <p>No completed courses yet.</p>
+{% endif %}
+
+{% endblock %}

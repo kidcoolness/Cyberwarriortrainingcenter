@@ -1,0 +1,27 @@
+{% extends 'base.html' %}
+{% block title %}Unit Progress Overview{% endblock %}
+{% block content %}
+<h1>Platoon / Mission Element / Team Progress</h1>
+<table class="table table-striped">
+  <thead>
+    <tr>
+      <th>Unit</th>
+      <th>Users</th>
+      <th>Completed Courses</th>
+      <th>Total Enrollments</th>
+      <th>Completion %</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for unit, data in report.items() %}
+    <tr>
+      <td>{{ unit }}</td>
+      <td>{{ data.users | length }}</td>
+      <td>{{ data.completed }}</td>
+      <td>{{ data.total }}</td>
+      <td>{{ "%.1f"|format((data.completed / data.total * 100) if data.total > 0 else 0) }}%</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endblock %}

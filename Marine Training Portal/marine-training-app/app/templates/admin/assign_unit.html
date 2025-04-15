@@ -1,0 +1,12 @@
+{% extends 'base.html' %}
+{% block title %}Assign Unit{% endblock %}
+{% block content %}
+<h1>Assign Unit to {{ user.name }}</h1>
+<form method="POST">
+  {{ form.hidden_tag() }}
+  {{ form.platoon.label }} {{ form.platoon(class="form-control") }} <br>
+  {{ form.mission_element.label }} {{ form.mission_element(class="form-control") }} <br>
+  {{ form.team.label }} {{ form.team(class="form-control") }} <br>
+  <button type="submit" class="btn btn-success">{{ form.submit.label }}</button>
+</form>
+{% endblock %}

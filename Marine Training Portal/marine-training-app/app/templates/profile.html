@@ -1,0 +1,38 @@
+{% extends 'base.html' %}
+{% block title %}{{ user.name }}'s Profile{% endblock %}
+{% block content %}
+
+<h1>{{ user.name }}'s Profile</h1>
+
+<!-- Profile Picture -->
+{% if user.profile_picture %}
+    <img src="{{ url_for('static', filename='profile_pics/' + user.profile_picture) }}" alt="Profile Picture" class="rounded-circle" width="150">
+{% else %}
+    <img src="{{ url_for('static', filename='profile_pics/default.jpg') }}" alt="Default Profile Picture" class="rounded-circle" width="150">
+{% endif %}
+
+<!-- User Details -->
+<h2>Position: {{ user.position if user.position else "Marine" }}</h2>
+<h3>Roles: {{ ", ".join(user.get_roles()) }}</h3>
+
+<!-- Completed Courses -->
+<h2>Completed Courses</h2>
+{% if completed_courses %}
+    <ul>
+        {% for enrollment in completed_courses %}
+        <li>{{ enrollment.course.name }} ✅</li>
+        {% endfor %}
+    </ul>
+{% else %}
+    <p>No completed courses yet.</p>
+{% endif %}
+
+<!-- Accolades -->
+<h2>Accolades</h2>
+{% if user.accolades %}
+    <p>{{ user.accolades }}</p>
+{% else %}
+    <p>No accolades yet.</p>
+{% endif %}
+
+{% endblock %}

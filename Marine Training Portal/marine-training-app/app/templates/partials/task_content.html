@@ -1,0 +1,50 @@
+<div class="card">
+  <div class="card-body">
+    <h5>{{ task.label }} – {{ task.title }}</h5>
+    <p>{{ task.description }}</p>
+    
+    {% if result == "correct" %}
+      <div class="alert alert-success">✅ Correct!</div>
+    {% elif result == "incorrect" %}
+      <div class="alert alert-danger">❌ Incorrect. Try again.</div>
+    {% endif %}
+
+    {% if task.grading_type == "auto" %}
+      <form id="answer-form" method="POST">
+        {{ form.hidden_tag() }}
+        <div class="mb-3">
+          {{ form.answer.label(class="form-label") }}
+          {{ form.answer(class="form-control") }}
+        </div>
+        <button type="submit" class="btn btn-primary">Submit</button>
+      </form>
+
+    {% elif task.grading_type == "mcq" %}
+      <form method="POST" id="answer-form">
+        {{ mcq_form.hidden_tag() }}
+        <div class="mb-3">
+          {{ mcq_form.answer.label }}<br>
+          {% for subfield in mcq_form.answer %}
+            <div class="form-check">
+              {{ subfield(class="form-check-input") }}
+              {{ subfield.label(class="form-check-label") }}
+            </div>
+          {% endfor %}
+        </div>
+
+    {% elif task.grading_type == 'trainer' %}
+    <form method="POST" id="answer-form">
+      {{ trainer_form.hidden_tag() }}
+      <div class="mb-3">
+        <label for="submission_text" class="form-label">Enter your answer for trainer review:</label>
+        {{ trainer_form.answer(class="form-control", rows=5) }}
+      </div>
+      
+        <button type="submit" class="btn btn-primary">Submit Answer</button>
+      </form>
+
+    {% else %}
+      <p>This task requires trainer evaluation or file upload.</p>
+    {% endif %}
+  </div>
+</div>

@@ -1,0 +1,68 @@
+{% extends 'base.html' %}
+{% block title %}{{ task.title }}{% endblock %}
+{% block content %}
+
+<div class="container-fluid">
+  <div class="row">
+    <!-- Sidebar -->
+    <div class="col-md-4 border-end" style="max-height: 80vh; overflow-y: auto;">
+      <h5 class="mt-3">📘 Course Navigation</h5>
+      {% set current_section = None %}
+      {% for t in all_tasks %}
+        {% if t.is_section_header %}
+          {% if current_section %}
+              </ul></div>
+          {% endif %}
+          <a class="btn btn-outline-primary w-100 text-start mb-1" data-bs-toggle="collapse" href="#collapse-{{ t.label | replace('.', '-') }}">
+            📂 {{ t.label }} {{ t.title }}
+          </a>
+          <div class="collapse {% if t.label == task.section_label %}show{% endif %}" id="collapse-{{ t.label | replace('.', '-') }}">
+            <ul class="list-group mb-2">
+          {% set current_section = t.label %}
+        {% endif %}
+
+        {% if not t.is_section_header and t.section_label == current_section %}
+          <li class="list-group-item {% if t.id == task.id %}active{% endif %}">
+            <a href="{{ url_for('main.task_detail', task_id=t.id) }}" class="text-decoration-none {% if t.id == task.id %}text-white{% endif %}">
+              {{ t.label }} - {{ t.title }}
+            </a>
+          </li>
+        {% endif %}
+      {% endfor %}
+      </ul></div>  <!-- close the final section -->
+    </div>
+
+    <!-- Main Task View -->
+    <div class="col-md-8">
+      <div class="mt-3">
+        <h3>{{ task.label }} - {{ task.title }}</h3>
+        <p class="text-muted">{{ task.description }}</p>
+
+        {% if task_assignment and task_assignment.status == "completed" %}
+          <p class="text-success">✅ Task Completed</p>
+        {% else %}
+          {% if task.grading_type == "auto" %}
+            <form method="POST">
+              {{ form.hidden_tag() }}
+              <div class="mb-3">
+                {{ form.answer.label(class="form-label") }}
+                {{ form.answer(class="form-control", rows="4") }}
+              </div>
+              <button type="submit" class="btn btn-primary">Submit Answer</button>
+            </form>
+          {% elif task.grading_type == "trainer" %}
+            <form method="POST">
+              <button type="submit" class="btn btn-success">✅ Mark as Complete</button>
+            </form>
+          {% else %}
+            <p><em>This task uses a different grading method.</em></p>
+          {% endif %}
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+
+{% endblock %}

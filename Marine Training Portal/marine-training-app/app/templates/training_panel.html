@@ -1,0 +1,66 @@
+{% extends 'base.html' %}
+{% block title %}Training Panel{% endblock %}
+{% block content %}
+
+<h1>Training Panel</h1>
+<p>Select Marines and assign them to a course.</p>
+
+<form method="POST" action="{{ url_for('main.enroll_marines') }}">
+    <div class="mb-3">
+        <label class="form-label">Select Marines</label>
+        <select name="user_id" class="form-control" multiple>
+            {% for marine in marines %}
+                <option value="{{ marine.id }}">{{ marine.name }}</option>
+            {% endfor %}
+        </select>
+    </div>
+
+    <div class="mb-3">
+        <label class="form-label">Select Course</label>
+        <select name="course_id" class="form-control">
+            {% for course in courses %}
+                <option value="{{ course.id }}">{{ course.name }}</option>
+            {% endfor %}
+        </select>
+    </div>
+
+    <button type="submit" class="btn btn-success">Enroll Marines</button>
+</form>
+
+<hr>
+
+<h2>Active Enrollments</h2>
+<table class="table table-striped">
+    <thead>
+      <tr>
+        <th>Marine</th>
+        <th>Course</th>
+        <th>Progress</th>
+        <th>Status</th>
+        <th>Actions</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for enrollment, marine, course in enrollments %}
+      <tr>
+        <td>{{ marine.name }}</td>
+        <td>{{ course.name }}</td>
+        <td>{{ enrollment.progress or 0 }}%</td>
+        <td>
+          {% if enrollment.completed %}
+            ✅ Completed
+          {% else %}
+            ⏳ In Progress
+          {% endif %}
+        </td>
+        <td>
+          <form method="POST" action="{{ url_for('main.disenroll_marine', user_id=marine.id, course_id=course.id) }}" style="display:inline;">
+            <button type="submit" class="btn btn-danger btn-sm">Disenroll</button>
+          </form>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+{% endblock %}

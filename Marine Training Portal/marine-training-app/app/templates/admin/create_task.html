@@ -1,0 +1,65 @@
+{% extends 'base.html' %}
+{% block title %}Create Task{% endblock %}
+{% block content %}
+
+<div class="container mt-4">
+  <h2>Create Task</h2>
+  <form method="POST">
+    {{ form.hidden_tag() }}
+
+    <div class="mb-3">
+      {{ form.title.label(class="form-label") }}
+      {{ form.title(class="form-control") }}
+    </div>
+
+    <div class="mb-3">
+      {{ form.label.label(class="form-label") }}
+      {{ form.label(class="form-control") }}
+    </div>
+
+    <div class="mb-3">
+      {{ form.section_label.label(class="form-label") }}
+      {{ form.section_label(class="form-control") }}
+    </div>
+
+    <div class="mb-3">
+      {{ form.description.label(class="form-label") }}
+      {{ form.description(class="form-control", rows=3) }}
+    </div>
+
+    <div class="mb-3">
+      {{ form.grading_type.label(class="form-label") }}
+      {{ form.grading_type(class="form-select") }}
+    </div>
+
+    <div class="mb-3">
+      {{ form.correct_answer.label(class="form-label") }}
+      {{ form.correct_answer(class="form-control") }}
+    </div>
+
+    <div class="mb-3">
+      {{ form.mcq_choices.label(class="form-label") }}
+      {{ form.mcq_choices(class="form-control", rows=4) }}
+      <small class="form-text text-muted">Enter one option per line for MCQ tasks.</small>
+    </div>
+
+    <div class="mb-3">
+      {{ form.parent_label.label(class="form-label") }}
+      {{ form.parent_label(class="form-control") }}
+    </div>
+    
+    <div class="form-check mb-3">
+      {{ form.is_section_header(class="form-check-input") }}
+      {{ form.is_section_header.label(class="form-check-label") }}
+    </div>
+
+    <div class="form-check mb-3">
+      {{ form.requires_upload(class="form-check-input") }}
+      {{ form.requires_upload.label(class="form-check-label") }}
+    </div>
+
+    <button type="submit" class="btn btn-success">{{ form.submit.label.text }}</button>
+  </form>
+</div>
+
+{% endblock %}

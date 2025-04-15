@@ -1,0 +1,16 @@
+{% extends 'base.html' %}
+{% block title %}Trainer Dashboard{% endblock %}
+{% block content %}
+
+<h1>Trainer Dashboard</h1>
+<a href="{{ url_for('main.training_panel') }}" class="btn btn-primary">Go to Training Panel</a>
+<a href="{{ url_for('main.export_performance') }}" class="btn btn-outline-success mb-3">
+    📥 Export Performance by Unit
+  </a>
+
+<form action="{{ url_for('main.review_submission', submission_id=submission.id) }}" method="POST">
+<textarea name="feedback" class="form-control" placeholder="Feedback..."></textarea>
+<button name="approved" value="true" class="btn btn-success btn-sm mt-2">Approve ✅</button>
+<button name="approved" value="false" class="btn btn-danger btn-sm mt-2">Reject ❌</button>
+</form>
+{% endblock %}

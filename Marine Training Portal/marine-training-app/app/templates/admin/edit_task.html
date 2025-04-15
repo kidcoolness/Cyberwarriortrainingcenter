@@ -1,0 +1,97 @@
+{% extends "base.html" %}
+
+{% block title %}Edit Task{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+  <h1>Edit Task</h1>
+
+  <form method="POST">
+    {{ form.hidden_tag() }}
+
+    <!-- Title -->
+    <div class="mb-3">
+      <label class="form-label">Task Title</label>
+      {{ form.title(class="form-control") }}
+    </div>
+
+    <!-- Description -->
+    <div class="mb-3">
+      <label class="form-label">Task Description</label>
+      {{ form.description(class="form-control", rows=4) }}
+    </div>
+
+    <!-- Grading Type -->
+    <div class="mb-3">
+      <label class="form-label">Grading Type</label>
+      {{ form.grading_type(class="form-select") }}
+    </div>
+
+    <!-- MCQ Choices -->
+    <div class="mb-3" id="mcq-section" style="display: none;">
+      <label class="form-label">Multiple Choice Options (one per line)</label>
+      {{ form.mcq_choices(class="form-control", rows=4) }}
+    </div>
+
+    <!-- Correct Answer -->
+    <div class="mb-3" id="answer-section">
+      <label class="form-label">Correct Answer</label>
+      {{ form.correct_answer(class="form-control") }}
+    </div>
+
+    <!-- Requires Upload -->
+    <div class="form-check mb-3">
+      {{ form.requires_upload(class="form-check-input") }}
+      <label class="form-check-label">Requires Upload?</label>
+    </div>
+
+    <!-- Reassign Section -->
+    <div class="mb-3">
+        {{ form.parent_label.label(class="form-label") }}
+        {{ form.parent_label(class="form-select") }}
+      <label class="form-label">Parent Section / Module</label>
+      <select class="form-select" name="parent_label">
+        <option value="">— No Parent —</option>
+        {% for section in sections %}
+          <option value="{{ section.label }}" {% if section.label == task.parent_label %}selected{% endif %}>
+            {{ section.label }} – {{ section.title }}
+          </option>
+        {% endfor %}
+      </select>
+    </div>
+
+    <!-- Buttons -->
+    <button type="submit" class="btn btn-success">💾 Save Changes</button>
+    <a href="{{ url_for('admin.edit_course', course_id=course_id) }}" class="btn btn-secondary">Cancel</a>
+  </form>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  function toggleMCQFields() {
+    const gradingType = document.querySelector('#grading_type');
+    const mcqSection = document.getElementById('mcq-section');
+    const answerSection = document.getElementById('answer-section');
+
+    if (gradingType.value === 'mcq') {
+      mcqSection.style.display = 'block';
+      answerSection.style.display = 'block';
+    } else if (gradingType.value === 'auto' || gradingType.value === 'api') {
+      mcqSection.style.display = 'none';
+      answerSection.style.display = 'block';
+    } else {
+      mcqSection.style.display = 'none';
+      answerSection.style.display = 'none';
+    }
+  }
+
+  document.addEventListener('DOMContentLoaded', () => {
+    const gradingTypeSelect = document.querySelector('#grading_type');
+    if (gradingTypeSelect) {
+      gradingTypeSelect.addEventListener('change', toggleMCQFields);
+      toggleMCQFields();  // Trigger once on load
+    }
+  });
+</script>
+{% endblock %}
