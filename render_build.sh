@@ -1,10 +1,9 @@
 #!/bin/bash
 
-# Navigate to app directory if needed
-cd marine_training_app
+if [ ! -d "marine_training_app/migrations" ]; then
+  echo "⚠️ No migrations folder, initializing..."
+  flask db init
+  flask db migrate -m "Init"
+fi
 
-# Run migrations
 flask db upgrade
-
-# Start the app
-gunicorn run:app
