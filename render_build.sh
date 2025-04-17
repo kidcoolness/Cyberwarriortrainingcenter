@@ -1,9 +1,13 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
-if [ ! -d "marine_training_app/migrations" ]; then
-  echo "⚠️ No migrations folder, initializing..."
-  flask db init
-  flask db migrate -m "Init"
-fi
+# 🧱 Step 1: Install dependencies
+pip install -r requirements.txt
 
+# 🧱 Step 2: Set Flask App context
+export FLASK_APP=wsgi.py
+
+# 🧱 Step 3: Run database migrations
 flask db upgrade
+
+# 🧱 Step 4 (optional): Seed admin account
+python marine_training_app/scripts/seed_admin.py
