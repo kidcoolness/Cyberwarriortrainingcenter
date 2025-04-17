@@ -2,10 +2,9 @@ from flask import Flask
 from flask_sqlalchemy import SQLAlchemy
 from flask_migrate import Migrate
 from flask_login import LoginManager
-from config import Config
 from marine_training_app.app.routes import main
 from marine_training_app.app.models import db, User
-from config import Config
+from marine_training_app.config import Config
 
 migrate = Migrate()
 login_manager = LoginManager()
