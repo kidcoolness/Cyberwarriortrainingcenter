@@ -1,13 +1,18 @@
-#!/usr/bin/env bash
+#!/bin/bash
 
-# 🧱 Step 1: Install dependencies
-pip install -r requirements.txt
-
-# 🧱 Step 2: Set Flask App context
+echo "🧭 Setting Flask environment variables..."
 export FLASK_APP=wsgi.py
+export FLASK_ENV=production
 
-# 🧱 Step 3: Run database migrations
-flask db upgrade
+echo "📂 Ensuring correct working directory..."
 
-# 🧱 Step 4 (optional): Seed admin account
-python marine_training_app/scripts/seed_admin.py
+ls
+
+echo "🔥 Running database migrations..."
+flask db upgrade -d migrations
+
+
+echo "👤 Seeding admin account..."
+python3 -m marine_training_app.scripts.seed_admin
+
+echo "✅ Render build script complete."

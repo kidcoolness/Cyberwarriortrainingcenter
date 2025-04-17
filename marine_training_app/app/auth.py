@@ -1,8 +1,8 @@
 from flask import Blueprint, render_template, request, redirect, url_for, flash
 from werkzeug.security import generate_password_hash, check_password_hash
 from flask_login import login_user, logout_user, login_required, current_user
-from marine_training_app.app.models import db, User
-from marine_training_app.app.forms import LoginForm, RegistrationForm
+from .models import db, User
+from .forms import LoginForm, RegistrationForm
 
 auth = Blueprint("auth", __name__)
 

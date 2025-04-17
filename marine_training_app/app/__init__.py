@@ -2,9 +2,9 @@ from flask import Flask
 from flask_sqlalchemy import SQLAlchemy
 from flask_migrate import Migrate
 from flask_login import LoginManager
-from marine_training_app.app.routes import main
-from marine_training_app.app.models import db, User
-from marine_training_app.config import Config
+from .routes import main
+from .models import db, User
+from ..config import Config
 
 migrate = Migrate()
 login_manager = LoginManager()
@@ -24,9 +24,9 @@ def create_app():
     login_manager.login_view = "auth.login"
 
     # ✅ Import blueprints *after* app + db are ready
-    from marine_training_app.app.auth import auth
-    from marine_training_app.app.routes import main
-    from marine_training_app.app.admin import admin
+    from .auth import auth
+    from .routes import main
+    from .admin import admin
 
     # ✅ Register blueprints here
     app.register_blueprint(auth)
