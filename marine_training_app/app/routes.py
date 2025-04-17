@@ -58,7 +58,6 @@ def index():
     else:
         return redirect(url_for("main.dashboard"))  # ✅ Students go to Student Dashboard
 
-
 @main.route("/tasks")
 @login_required
 def task_list():
