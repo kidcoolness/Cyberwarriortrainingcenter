@@ -455,7 +455,7 @@ def edit_profile():
 @main.route("/leaderboard")
 @login_required
 def leaderboard():
-    from models import User, CourseEnrollment  # ✅ Import here to break circular loop
+    from .models import User, CourseEnrollment  # ✅ Import here to break circular loop
 
     users = User.query.all()
     leaderboard_data = []
