@@ -1,5 +1,9 @@
-from marine_training_app.app import create_app
-from marine_training_app.app.models import db, User
+import sys
+import os
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+
+from app import create_app
+from app.models import db, User
 from werkzeug.security import generate_password_hash
 
 app = create_app()
