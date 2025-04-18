@@ -1,7 +1,7 @@
 from flask import Blueprint, render_template, request, redirect, url_for, flash
 from flask_login import login_required, current_user
 from .admin import admin
-from .forms import ProfileUpdateForm, AnswerForm, MCQForm, TrainerAnswerForm
+from .forms import EditProfileForm, AnswerForm, MCQForm, TrainerAnswerForm
 from .models import db, User, CourseEnrollment, CourseTask, TaskAssignment, Course, Task
 from collections import defaultdict
 import json
@@ -11,6 +11,9 @@ import csv
 from io import StringIO
 from flask import make_response
 from .models import Submission, TrainerReview
+from werkzeug.security import check_password_hash, generate_password_hash
+from werkzeug.utils import secure_filename
+import os
 
 # Define a Blueprint
 main = Blueprint("main", __name__)
@@ -430,7 +433,7 @@ def profile(user_id):
 
 import os
 from werkzeug.utils import secure_filename
-from .forms import ProfileUpdateForm
+from .forms import EditProfileForm
 
 @main.route('/edit_profile', methods=['GET', 'POST'])
 @login_required
@@ -438,17 +441,37 @@ def edit_profile():
     form = EditProfileForm(obj=current_user)
 
     if form.validate_on_submit():
+        # Update email if changed
         if form.email.data and form.email.data != current_user.email:
             current_user.email = form.email.data
-        
-        if form.password.data:
-            current_user.password_hash = generate_password_hash(form.password.data)
+
+        # Handle password update
+        if form.current_password.data and form.new_password.data:
+            if check_password_hash(current_user.password_hash, form.current_password.data):
+                current_user.password_hash = generate_password_hash(form.new_password.data)
+            else:
+                flash("❌ Incorrect current password.", "danger")
+                return redirect(url_for('main.edit_profile'))
+                
+        # Update other fields
+        current_user.position = form.position.data
+        current_user.accolades = form.accolades.data
+
+        # Handle profile picture upload if provided
+        if form.profile_picture.data:
+            pic_data = form.profile_picture.data.read()
+            pic_filename = secure_filename(form.profile_picture.data.filename)
+            save_path = os.path.join(current_app.config['UPLOAD_FOLDER'], pic_filename)
+            with open(save_path, 'wb') as f:
+                f.write(pic_data)
+            current_user.profile_picture = pic_filename
 
         db.session.commit()
         flash('✅ Profile updated successfully!', 'success')
         return redirect(url_for('main.edit_profile'))
 
     return render_template('edit_profile.html', form=form)
+
 
 @main.route("/leaderboard")
 @login_required

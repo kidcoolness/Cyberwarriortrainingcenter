@@ -49,7 +49,7 @@ class TaskForm(FlaskForm):
     
     submit = SubmitField("Save Task")
 
-class ProfileUpdateForm(FlaskForm):
+class EditProfileForm(FlaskForm):
     email = StringField("Email", validators=[Optional(), Email()])
     current_password = PasswordField("Current Password", validators=[Optional()])
     new_password = PasswordField("New Password", validators=[Optional()])
@@ -60,7 +60,7 @@ class ProfileUpdateForm(FlaskForm):
     position = StringField("Position", validators=[DataRequired()])
     accolades = TextAreaField("Accolades", validators=[Optional()])
     profile_picture = FileField("Profile Picture (JPG/PNG)", validators=[Optional(), FileAllowed(['jpg', 'png'])])
-    
+    password = current_password
     submit = SubmitField("Update Profile")
 
 class OrgAssignmentForm(FlaskForm):
