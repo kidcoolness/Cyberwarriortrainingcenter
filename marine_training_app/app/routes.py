@@ -14,7 +14,7 @@ from .models import Submission, TrainerReview
 from werkzeug.security import check_password_hash, generate_password_hash
 from werkzeug.utils import secure_filename
 import os
-
+from flask import current_app
 # Define a Blueprint
 main = Blueprint("main", __name__)
 
@@ -452,19 +452,21 @@ def edit_profile():
             else:
                 flash("❌ Incorrect current password.", "danger")
                 return redirect(url_for('main.edit_profile'))
-                
+
         # Update other fields
         current_user.position = form.position.data
         current_user.accolades = form.accolades.data
 
         # Handle profile picture upload if provided
-        if form.profile_picture.data:
+        if form.profile_picture.data and hasattr(form.profile_picture.data, 'read'):
             pic_data = form.profile_picture.data.read()
-            pic_filename = secure_filename(form.profile_picture.data.filename)
-            save_path = os.path.join(current_app.config['UPLOAD_FOLDER'], pic_filename)
-            with open(save_path, 'wb') as f:
+            filename = secure_filename(form.profile_picture.data.filename)
+            filepath = os.path.join("marine_training_app", "app","static", "profile_pics", filename)
+
+            with open(filepath, "wb") as f:
                 f.write(pic_data)
-            current_user.profile_picture = pic_filename
+
+            current_user.profile_picture = f"profile_pics/{filename}"
 
         db.session.commit()
         flash('✅ Profile updated successfully!', 'success')

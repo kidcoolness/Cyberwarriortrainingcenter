@@ -6,7 +6,7 @@
 
 <!-- Profile Picture -->
 {% if user.profile_picture %}
-    <img src="{{ url_for('static', filename='profile_pics/' + user.profile_picture) }}" alt="Profile Picture" class="rounded-circle" width="150">
+    <img src="{{ url_for('marine_training_app','app','static', filename='profile_pics/' + user.profile_picture) }}" alt="Profile Picture" class="rounded-circle" width="150">
 {% else %}
     <img src="{{ url_for('static', filename='profile_pics/default.jpg') }}" alt="Default Profile Picture" class="rounded-circle" width="150">
 {% endif %}
