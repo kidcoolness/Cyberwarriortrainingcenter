@@ -82,26 +82,26 @@ def create_course():
 def edit_course(course_id):
     if not (current_user.is_trainer or current_user.is_admin or current_user.is_training_manager):
         abort(403)
-        course = Course.query.get_or_404(course_id)
-        form = CourseForm(obj=course)
-        task_form = TaskForm()
+    course = Course.query.get_or_404(course_id)
+    form = CourseForm(obj=course)
+    task_form = TaskForm()
 
-        # Populate grading_type choices if needed dynamically
-        task_form.grading_type.choices = [
-            ("auto", "Auto-Graded (Text)"),
-            ("mcq", "Auto-Graded (Multiple Choice)"),
-            ("trainer", "Trainer-Graded"),
-            ("api", "TryHackMe API-Graded")
-        ]
+    # Populate grading_type choices if needed dynamically
+    task_form.grading_type.choices = [
+        ("auto", "Auto-Graded (Text)"),
+        ("mcq", "Auto-Graded (Multiple Choice)"),
+        ("trainer", "Trainer-Graded"),
+        ("api", "TryHackMe API-Graded")
+    ]
 
-        tasks = Task.query.filter_by(course_id=course_id).order_by(Task.label).all()
+    tasks = Task.query.filter_by(course_id=course_id).order_by(Task.label).all()
 
-        if form.validate_on_submit():
-            course.name = form.name.data
-            course.description = form.description.data
-            db.session.commit()
-            flash("Course updated successfully!", "success")
-            return redirect(url_for("admin.edit_course", course_id=course.id))
+    if form.validate_on_submit():
+        course.name = form.name.data
+        course.description = form.description.data
+        db.session.commit()
+        flash("Course updated successfully!", "success")
+        return redirect(url_for("admin.edit_course", course_id=course.id))
 
     return render_template("admin/edit_course.html", form=form, task_form=task_form, course=course, tasks=tasks)
 
