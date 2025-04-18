@@ -430,27 +430,24 @@ def profile(user_id):
 
 import os
 from werkzeug.utils import secure_filename
-
-@main.route("/edit_profile", methods=["GET", "POST"])
+from .forms import 
+@main.route('/edit_profile', methods=['GET', 'POST'])
 @login_required
 def edit_profile():
-    form = ProfileUpdateForm(obj=current_user)
+    form = EditProfileForm(obj=current_user)
 
     if form.validate_on_submit():
-        current_user.position = form.position.data
-        current_user.accolades = form.accolades.data
-
-        if form.profile_picture.data:
-            filename = secure_filename(form.profile_picture.data.filename)
-            path = os.path.join("app/static/profile_pics", filename)
-            form.profile_picture.data.save(path)
-            current_user.profile_picture = filename
+        if form.email.data and form.email.data != current_user.email:
+            current_user.email = form.email.data
+        
+        if form.password.data:
+            current_user.password_hash = generate_password_hash(form.password.data)
 
         db.session.commit()
-        flash("Profile updated successfully!", "success")
-        return redirect(url_for("main.profile", user_id=current_user.id))
+        flash('✅ Profile updated successfully!', 'success')
+        return redirect(url_for('main.edit_profile'))
 
-    return render_template("edit_profile.html", form=form)
+    return render_template('edit_profile.html', form=form)
 
 @main.route("/leaderboard")
 @login_required

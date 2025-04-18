@@ -5,6 +5,10 @@ from flask_wtf import FlaskForm
 from wtforms import StringField, TextAreaField, SelectField, BooleanField, SubmitField, RadioField
 from wtforms.validators import DataRequired, Optional
 import json
+from flask_wtf import FlaskForm
+from wtforms import StringField, PasswordField, TextAreaField, SubmitField
+from wtforms.validators import DataRequired, Email, Optional, EqualTo
+from flask_wtf.file import FileField
 
 class LoginForm(FlaskForm):
     email = StringField("Email", validators=[DataRequired(), Email()])
@@ -46,9 +50,17 @@ class TaskForm(FlaskForm):
     submit = SubmitField("Save Task")
 
 class ProfileUpdateForm(FlaskForm):
+    email = StringField("Email", validators=[Optional(), Email()])
+    current_password = PasswordField("Current Password", validators=[Optional()])
+    new_password = PasswordField("New Password", validators=[Optional()])
+    confirm_password = PasswordField("Confirm New Password", validators=[
+        Optional(), EqualTo('new_password', message="Passwords must match.")
+    ])
+
     position = StringField("Position", validators=[DataRequired()])
-    accolades = TextAreaField("Accolades")
-    profile_picture = FileField("Profile Picture (JPG/PNG)")
+    accolades = TextAreaField("Accolades", validators=[Optional()])
+    profile_picture = FileField("Profile Picture (JPG/PNG)", validators=[Optional(), FileAllowed(['jpg', 'png'])])
+    
     submit = SubmitField("Update Profile")
 
 class OrgAssignmentForm(FlaskForm):
