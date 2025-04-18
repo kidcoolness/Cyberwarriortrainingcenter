@@ -430,7 +430,8 @@ def profile(user_id):
 
 import os
 from werkzeug.utils import secure_filename
-from .forms import 
+from .forms import ProfileUpdateForm
+
 @main.route('/edit_profile', methods=['GET', 'POST'])
 @login_required
 def edit_profile():
