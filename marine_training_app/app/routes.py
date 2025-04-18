@@ -474,7 +474,6 @@ def edit_profile():
 
     return render_template('edit_profile.html', form=form)
 
-
 @main.route("/leaderboard")
 @login_required
 def leaderboard():

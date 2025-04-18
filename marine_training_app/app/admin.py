@@ -103,7 +103,7 @@ def edit_course(course_id):
             flash("Course updated successfully!", "success")
             return redirect(url_for("admin.edit_course", course_id=course.id))
 
-        return render_template("admin/edit_course.html", form=form, task_form=task_form, course=course, tasks=tasks)
+    return render_template("admin/edit_course.html", form=form, task_form=task_form, course=course, tasks=tasks)
 
 @admin.route("/delete_course/<int:course_id>", methods=["POST"])
 @login_required
