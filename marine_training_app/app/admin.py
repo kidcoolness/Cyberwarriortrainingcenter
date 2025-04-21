@@ -332,3 +332,60 @@ def create_section(course_id):
     flash("✅ Section created!", "success")
     return redirect(url_for("admin.edit_course", course_id=course_id))
 
+@admin.route("/edit_module/<int:module_id>", methods=["GET", "POST"])
+@login_required
+def edit_module(module_id):
+    module = Module.query.get_or_404(module_id)
+    form = EditModuleForm(obj=module)
+    if form.validate_on_submit():
+        module.name = form.name.data
+        db.session.commit()
+        flash("Module updated successfully!", "success")
+        return redirect(request.referrer or url_for("admin.manage_courses"))
+    return render_template("admin/edit_module.html", form=form)
+
+@admin.route("/edit_section/<int:section_id>", methods=["GET", "POST"])
+@login_required
+def edit_section(section_id):
+    section = Section.query.get_or_404(section_id)
+    form = EditSectionForm(obj=section)
+    if form.validate_on_submit():
+        section.name = form.name.data
+        db.session.commit()
+        flash("Section updated successfully!", "success")
+        return redirect(request.referrer or url_for("admin.manage_courses"))
+    return render_template("admin/edit_section.html", form=form)
+
+@admin.route("/edit_label/<int:label_id>", methods=["GET", "POST"])
+@login_required
+def edit_label(label_id):
+    label = Label.query.get_or_404(label_id)
+    form = EditLabelForm(obj=label)
+
+    if form.validate_on_submit():
+        label.label = form.label.data
+        label.name = form.name.data
+        db.session.commit()
+        flash("Label updated successfully!", "success")
+        return redirect(url_for("admin.manage_courses"))
+
+    return render_template("admin/edit_label.html", form=form, label=label)
+
+
+@admin.route('/edit_module_section/<int:item_id>', methods=['GET', 'POST'])
+@login_required
+def edit_module_section(item_id):
+    if not (current_user.is_trainer or current_user.is_admin or current_user.is_training_manager):
+        abort(403)
+    
+    item = Task.query.get_or_404(item_id)
+    if request.method == 'POST':
+        new_label = request.form.get("label")
+        new_title = request.form.get("title")
+        item.label = new_label
+        item.title = new_title
+        db.session.commit()
+        flash("Module/Section name updated.", "success")
+        return redirect(url_for('admin.manage_courses'))
+
+    return render_template("admin/edit_module_section.html", item=item)

@@ -6,7 +6,7 @@ from .models import db, User, CourseEnrollment, CourseTask, TaskAssignment, Cour
 from collections import defaultdict
 import json
 from sqlalchemy.orm import joinedload
-from .utils import calculate_progress
+from .utils import calculate_progress, natural_key
 import csv
 from io import StringIO
 from flask import make_response
@@ -250,7 +250,8 @@ def course_page(course_id):
         flash("You are not enrolled in this course.", "danger")
         return redirect(url_for("main.dashboard"))
 
-    all_tasks = Task.query.filter_by(course_id=course_id).order_by(Task.label).all()
+    #all_tasks = Task.query.filter_by(course_id=course_id).order_by(Task.label).all()
+    all_tasks = sorted(Task.query.filter_by(course_id=course_id).all(), key=lambda task: natural_key(task.label))
 
     completed_tasks = [
         t.task_id for t in TaskAssignment.query.filter_by(
@@ -352,6 +353,7 @@ def enroll_marines():
 @main.route("/mycourses")
 @login_required
 def my_courses():
+
     # Get all course enrollments for this Marine
     enrollments = CourseEnrollment.query.options(joinedload(CourseEnrollment.course)).filter_by(user_id=current_user.id).all()
     

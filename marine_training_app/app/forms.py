@@ -79,3 +79,16 @@ class MCQForm(FlaskForm):
 
 class TrainerAnswerForm(FlaskForm):
     answer = TextAreaField("Answer", validators=[DataRequired()])
+
+class EditModuleForm(FlaskForm):
+    name = StringField("Module Name", validators=[DataRequired()])
+    submit = SubmitField("Save Changes")
+
+class EditSectionForm(FlaskForm):
+    name = StringField("Section Name", validators=[DataRequired()])
+    submit = SubmitField("Save Changes")
+
+class EditLabelForm(FlaskForm):
+    label = StringField("New Label", validators=[DataRequired()])
+    name = StringField("New Name", validators=[DataRequired()])
+    submit = SubmitField("Update")

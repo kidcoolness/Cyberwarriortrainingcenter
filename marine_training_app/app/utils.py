@@ -1,5 +1,5 @@
 # utils.py
-
+import re
 from .models import TaskAssignment, CourseTask
 
 def calculate_progress(user_id, course_id):
@@ -12,3 +12,9 @@ def calculate_progress(user_id, course_id):
     
     progress = (completed_tasks / total_tasks * 100) if total_tasks > 0 else 0
     return round(progress, 2), total_tasks, completed_tasks
+
+def natural_key(string_):
+    return [int(s) if s.isdigit() else s.lower() for s in re.split(r'(\d+)', string_)]
+
+def natural_sort_key(label):
+    return [int(text) if text.isdigit() else text.lower() for text in re.split(r'(\d+)', label)]
