@@ -1,0 +1,15 @@
+{% extends 'base.html' %}
+{% block content %}
+<h2>Edit Module or Section</h2>
+<form method="POST">
+  <div class="mb-3">
+    <label for="label" class="form-label">Label</label>
+    <input type="text" class="form-control" name="label" value="{{ item.label }}">
+  </div>
+  <div class="mb-3">
+    <label for="title" class="form-label">Title</label>
+    <input type="text" class="form-control" name="title" value="{{ item.title }}">
+  </div>
+  <button class="btn btn-primary">Save Changes</button>
+</form>
+{% endblock %}

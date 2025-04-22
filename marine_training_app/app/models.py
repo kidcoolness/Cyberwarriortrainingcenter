@@ -123,4 +123,12 @@ class Section(db.Model):
     label = db.Column(db.String(50))  # e.g. "1.2"
     title = db.Column(db.String(255))  # e.g. "Analyze Logs"
     sequence = db.Column(db.Integer)
+    name = db.Column(db.String(128), nullable=False)
 
+    module_id = db.Column(db.Integer, db.ForeignKey("module.id"), nullable=False)
+
+class Module(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(128), nullable=False)
+    course_id = db.Column(db.Integer, db.ForeignKey('course.id'), nullable=False)
+    sections = db.relationship("Section", backref="module", lazy=True)

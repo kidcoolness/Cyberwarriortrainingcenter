@@ -1,7 +1,7 @@
 <div class="card">
   <div class="card-body">
     <h5>{{ task.label }} – {{ task.title }}</h5>
-    <p>{{ task.description }}</p>
+    <p>{{ task.description.replace('\n', '<br>') | safe }}</p>
     
     {% if result == "correct" %}
       <div class="alert alert-success">✅ Correct!</div>
