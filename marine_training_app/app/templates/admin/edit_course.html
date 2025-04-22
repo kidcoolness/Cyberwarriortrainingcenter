@@ -117,37 +117,58 @@
 
 <hr>
 
-<!-- View Hierarchy with Rename buttons -->
 <h3>Course Hierarchy</h3>
 <div class="border p-3" style="max-height: 600px; overflow-y: auto;">
   {% for task in tasks %}
     {% if task.label.endswith('.0') %}
+      <!-- MODULE -->
       <div class="d-flex justify-content-between align-items-center">
         <strong>📘 {{ task.label }} {{ task.title }}</strong>
-        <button class="btn btn-sm btn-outline-primary ms-2" 
-                data-bs-toggle="modal"
-                data-bs-target="#renameModuleModal"
-                data-task-id="{{ task.id }}"
-                data-current-title="{{ task.title }}">
-          📝 Rename
-        </button>
+        <div>
+          <button class="btn btn-sm btn-outline-primary" 
+                  data-bs-toggle="modal"
+                  data-bs-target="#renameModuleModal"
+                  data-task-id="{{ task.id }}"
+                  data-current-title="{{ task.title }}">
+            📝 Rename
+          </button>
+          <form method="POST" action="{{ url_for('admin.delete_module', course_id=course.id, module_label=task.label) }}" class="d-inline" onsubmit="return confirm('Delete this module and all its contents?');">
+            <button class="btn btn-sm btn-outline-danger">🗑️</button>
+          </form>
+        </div>
       </div>
+
     {% elif task.is_section_header %}
+      <!-- SECTION -->
       <div class="d-flex justify-content-between align-items-center ms-3">
         <span>📖 {{ task.label }} {{ task.title }}</span>
-        <button class="btn btn-sm btn-outline-primary ms-2" 
-                data-bs-toggle="modal"
-                data-bs-target="#renameSectionModal"
-                data-task-id="{{ task.id }}"
-                data-current-title="{{ task.title }}">
-          📝 Rename
-        </button>
+        <div>
+          <button class="btn btn-sm btn-outline-primary" 
+                  data-bs-toggle="modal"
+                  data-bs-target="#renameSectionModal"
+                  data-task-id="{{ task.id }}"
+                  data-current-title="{{ task.title }}">
+            📝 Rename
+          </button>
+          <form method="POST" action="{{ url_for('admin.delete_section', course_id=course.id, section_label=task.label) }}" class="d-inline" onsubmit="return confirm('Delete this section and all its tasks?');">
+            <button class="btn btn-sm btn-outline-danger">🗑️</button>
+          </form>
+        </div>
       </div>
+
     {% else %}
-      <span class="ms-5">🔗 <a href="{{ url_for('admin.edit_task', task_id=task.id) }}">{{ task.label }} - {{ task.title }}</a></span><br>
+      <!-- TASK -->
+      <div class="d-flex justify-content-between align-items-center ms-5">
+        <span>🔗 <a href="{{ url_for('admin.edit_task', task_id=task.id) }}">{{ task.label }} - {{ task.title }}</a></span>
+        <form method="POST" action="{{ url_for('admin.delete_task', course_id=course.id, task_label=task.label, task_id=task.id) }}" class="d-inline" onsubmit="return confirm('Delete this task?');">
+          <button class="btn btn-sm btn-outline-danger">🗑️</button>
+        </form>
+      </div>
     {% endif %}
   {% endfor %}
 </div>
+
+
 
 
 <!-- Module Rename Modal -->

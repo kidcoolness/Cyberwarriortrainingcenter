@@ -1,6 +1,6 @@
 from flask import Blueprint, render_template, request, redirect, url_for, flash
 from flask_login import login_required, current_user
-from .models import db, User, Task, Course, CourseTask, CourseEnrollment
+from .models import db, User, Task, Course, CourseTask, CourseEnrollment, Submission
 from flask_wtf import FlaskForm
 from wtforms import StringField, TextAreaField, SubmitField
 from wtforms.validators import DataRequired, Optional
@@ -170,8 +170,6 @@ def create_task(course_id):
 
     return render_template("admin/create_task.html", form=form)
 
-from .forms import TaskForm
-
 @admin.route("/edit_task/<int:task_id>", methods=["GET", "POST"])
 @login_required
 def edit_task(task_id):
@@ -228,19 +226,6 @@ def edit_task(task_id):
         return redirect(url_for("admin.edit_course", course_id=task.course_id))
 
     return render_template("admin/edit_task.html", form=form, task=task, course_id=task.course_id)
-
-@admin.route("/delete_task/<int:task_id>", methods=["POST"])
-@login_required
-def delete_task(task_id):
-    if not current_user.is_admin:
-        flash("Access denied: Admins only.", "danger")
-        return redirect(url_for("main.dashboard"))
-
-    task = Task.query.get_or_404(task_id)
-    db.session.delete(task)
-    db.session.commit()
-    flash("Task deleted successfully!", "success")
-    return redirect(url_for("admin.edit_course", course_id=task.course.id))
 
 class CourseForm(FlaskForm):
     name = StringField("Course Name", validators=[DataRequired()])
@@ -393,7 +378,6 @@ def edit_module_section(item_id):
 
     return render_template("admin/edit_module_section.html", item=item)
 
-# admin.py
 @admin.route("/rename_label", methods=["POST"])
 @login_required
 def rename_label():
@@ -415,3 +399,48 @@ def rename_label():
     flash(f"{label_type.capitalize()} renamed successfully!", "success")
 
     return redirect(url_for("admin.edit_course", course_id=task.course_id))
+
+@admin.route("/delete_task/<int:task_id>", methods=["POST"])
+@login_required
+def delete_task(task_id):
+    task = Task.query.get_or_404(task_id)
+    # Delete submissions linked to this task
+    Submission.query.filter_by(task_id=task.id).delete()
+    db.session.delete(task)
+    db.session.commit()
+    flash("Task deleted successfully.", "success")
+    return redirect(url_for("admin.edit_course", course_id=task.course_id))
+
+@admin.route("/delete_section/<int:course_id>/<string:section_label>", methods=["POST"])
+@login_required
+def delete_section(course_id, section_label):
+    # Get all tasks under this section (including the section header itself)
+    tasks_to_delete = Task.query.filter(
+        Task.course_id == course_id,
+        Task.label.startswith(section_label)
+    ).all()
+
+    for task in tasks_to_delete:
+        Submission.query.filter_by(task_id=task.id).delete()
+        db.session.delete(task)
+
+    db.session.commit()
+    flash("Section and all associated tasks deleted.", "success")
+    return redirect(url_for("admin.edit_course", course_id=course_id))
+
+@admin.route("/delete_module/<int:course_id>/<string:module_label>", methods=["POST"])
+@login_required
+def delete_module(course_id, module_label):
+    # Get all tasks under this module (including section headers and tasks)
+    tasks_to_delete = Task.query.filter(
+        Task.course_id == course_id,
+        Task.label.startswith(module_label)
+    ).all()
+
+    for task in tasks_to_delete:
+        Submission.query.filter_by(task_id=task.id).delete()
+        db.session.delete(task)
+
+    db.session.commit()
+    flash("Module and all associated sections and tasks deleted.", "success")
+    return redirect(url_for("admin.edit_course", course_id=course_id))
