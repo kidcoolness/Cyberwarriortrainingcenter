@@ -5,6 +5,7 @@ from flask_login import LoginManager
 from .routes import main
 from .models import db, User
 from ..config import Config
+from .utils import natural_key  # or .utils if same-level
 
 migrate = Migrate()
 login_manager = LoginManager()
@@ -32,6 +33,8 @@ def create_app():
     app.register_blueprint(auth)
     app.register_blueprint(main)
     app.register_blueprint(admin, url_prefix="/admin")
+
+    app.jinja_env.globals['natural_key'] = natural_key
 
     return app
 

@@ -6,6 +6,7 @@ from wtforms import StringField, TextAreaField, SubmitField
 from wtforms.validators import DataRequired, Optional
 from .forms import TaskForm, OrgAssignmentForm
 import json
+from .utils import natural_key 
 admin = Blueprint("admin", __name__)
 
 # ✅ Admin Dashboard
@@ -94,7 +95,10 @@ def edit_course(course_id):
         ("api", "TryHackMe API-Graded")
     ]
 
-    tasks = Task.query.filter_by(course_id=course_id).order_by(Task.label).all()
+    tasks = sorted(
+        Task.query.filter_by(course_id=course_id).all(),
+        key=lambda t: natural_key(t.label)
+    )
 
     if form.validate_on_submit():
         course.name = form.name.data
@@ -371,7 +375,6 @@ def edit_label(label_id):
 
     return render_template("admin/edit_label.html", form=form, label=label)
 
-
 @admin.route('/edit_module_section/<int:item_id>', methods=['GET', 'POST'])
 @login_required
 def edit_module_section(item_id):
@@ -389,3 +392,26 @@ def edit_module_section(item_id):
         return redirect(url_for('admin.manage_courses'))
 
     return render_template("admin/edit_module_section.html", item=item)
+
+# admin.py
+@admin.route("/rename_label", methods=["POST"])
+@login_required
+def rename_label():
+    if not (current_user.is_admin or current_user.is_trainer or current_user.is_training_manager):
+        abort(403)
+
+    label_id = request.form.get("label_id")
+    new_title = request.form.get("new_name")
+    label_type = request.form.get("label_type")
+
+    task = Task.query.get_or_404(label_id)
+
+    if label_type not in ["module", "section"]:
+        flash("Invalid label type", "danger")
+        return redirect(url_for("admin.manage_courses"))
+
+    task.title = new_title
+    db.session.commit()
+    flash(f"{label_type.capitalize()} renamed successfully!", "success")
+
+    return redirect(url_for("admin.edit_course", course_id=task.course_id))
