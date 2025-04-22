@@ -1,0 +1,29 @@
+{% extends 'base.html' %}
+{% block content %}
+<h2>Select User to View Tasks</h2>
+<form method="GET" action="{{ url_for('admin.trainer_user_task_view', user_id=0) }}" onsubmit="return goToUser();">
+  <select id="userDropdown" class="form-select">
+    <option disabled selected value="">-- Choose a User --</option>
+    {% for user in users %}
+    <option value="{{ user.id }}">
+        {% set parts = user.name.split(' ') %}
+        {% if parts|length > 1 %}
+          {{ parts[-2] }}, {{ parts[-1] }}
+        {% else %}
+          {{ user.name }}
+        {% endif %}
+      </option>
+    {% endfor %}
+  </select>
+  <button type="submit" class="btn btn-primary mt-2">Go</button>
+</form>
+
+<script>
+function goToUser() {
+  const userId = document.getElementById("userDropdown").value;
+  if (!userId) return false;
+  window.location.href = "/admin/trainer/user_tasks/" + userId;
+  return false;
+}
+</script>
+{% endblock %}

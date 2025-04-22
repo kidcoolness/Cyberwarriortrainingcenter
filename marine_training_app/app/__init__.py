@@ -5,7 +5,7 @@ from flask_login import LoginManager
 from .routes import main
 from .models import db, User
 from ..config import Config
-from .utils import natural_key  # or .utils if same-level
+#from .utils import natural_key  # or .utils if same-level
 
 migrate = Migrate()
 login_manager = LoginManager()
