@@ -34,7 +34,5 @@ def create_app():
     app.register_blueprint(main)
     app.register_blueprint(admin, url_prefix="/admin")
 
-    app.jinja_env.globals['natural_key'] = natural_key
-
     return app
 
