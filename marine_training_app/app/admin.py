@@ -451,8 +451,12 @@ def trainer_user_tasks():
     if not (current_user.is_trainer or current_user.is_admin or current_user.is_training_manager):
         abort(403)
 
-    users = User.query.order_by(User.last_name).all()
-
+    #users = User.query.order_by(User.last_name).all()
+    users = sorted(
+        User.query.all(),
+        key=lambda u: (str(u.name).split()[1] if len(str(u.name).split()) > 1 else "")
+    )
+    
     return render_template("admin/trainer_user_selector.html", users=users)
 
 @admin.route('/trainer/user_tasks/<int:user_id>', methods=['GET', 'POST'])
