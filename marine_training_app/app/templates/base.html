@@ -39,6 +39,9 @@
                 <li><a class="dropdown-item" href="{{ url_for('main.review_submissions') }}">Review Graded Submissions</a></li>
                 <li><a class="dropdown-item" href="{{ url_for('main.export_performance') }}">Export Performance CSV</a></li>
                 <li><a class="dropdown-item" href="{{ url_for('admin.manage_courses') }}">Manage Courses</a>
+                <li><a class="dropdown-item" href="{{ url_for('admin.trainer_user_selector') }}">📋 View User Task Completion</a></li>
+                <li><a class="dropdown-item" href="{{ url_for('admin.user_task_overview', user_id=current_user.id) }}">🔍 My Task Overview</a></li>
+
               </ul>
             </li>
             {% endif %}

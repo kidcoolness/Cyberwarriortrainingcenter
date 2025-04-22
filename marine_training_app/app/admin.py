@@ -444,3 +444,40 @@ def delete_module(course_id, module_label):
     db.session.commit()
     flash("Module and all associated sections and tasks deleted.", "success")
     return redirect(url_for("admin.edit_course", course_id=course_id))
+
+@admin.route('/trainer/user_tasks', methods=['GET', 'POST'])
+@login_required
+def trainer_user_tasks():
+    if not (current_user.is_trainer or current_user.is_admin or current_user.is_training_manager):
+        abort(403)
+
+    users = User.query.order_by(User.last_name).all()
+
+    return render_template("admin/trainer_user_selector.html", users=users)
+
+@admin.route('/trainer/user_tasks/<int:user_id>', methods=['GET', 'POST'])
+@login_required
+def trainer_user_task_view(user_id):
+    if not (current_user.is_trainer or current_user.is_admin or current_user.is_training_manager):
+        abort(403)
+
+    user = User.query.get_or_404(user_id)
+    tasks = Task.query.order_by(Task.label).all()
+    completed_task_ids = {submission.task_id for submission in user.submissions}
+
+    return render_template("admin/user_task_overview.html", user=user, tasks=tasks, completed_task_ids=completed_task_ids)
+
+@admin.route('/trainer/mark_task_complete/<int:user_id>/<int:task_id>', methods=['POST'])
+@login_required
+def mark_task_complete(user_id, task_id):
+    if not (current_user.is_trainer or current_user.is_admin or current_user.is_training_manager):
+        abort(403)
+
+    existing = Submission.query.filter_by(user_id=user_id, task_id=task_id).first()
+    if not existing:
+        submission = Submission(user_id=user_id, task_id=task_id, content="Manually marked complete", passed=True)
+        db.session.add(submission)
+        db.session.commit()
+
+    flash("✅ Task marked complete!", "success")
+    return redirect(url_for('admin.trainer_user_task_view', user_id=user_id))
