@@ -1,6 +1,6 @@
 from flask import Blueprint, render_template, request, redirect, url_for, flash
 from flask_login import login_required, current_user
-from .models import db, User, Task, Course, CourseTask, CourseEnrollment, Submission
+from .models import db, User, Task, Course, CourseTask, CourseEnrollment, Submission,TaskAssignment
 from flask_wtf import FlaskForm
 from wtforms import StringField, TextAreaField, SubmitField
 from wtforms.validators import DataRequired, Optional
@@ -459,29 +459,59 @@ def trainer_user_tasks():
     
     return render_template("admin/trainer_user_selector.html", users=users)
 
-@admin.route('/trainer/user_tasks/<int:user_id>', methods=['GET', 'POST'])
+@admin.route('/trainer/user_tasks/<int:user_id>')
 @login_required
 def trainer_user_task_view(user_id):
     if not (current_user.is_trainer or current_user.is_admin or current_user.is_training_manager):
         abort(403)
 
     user = User.query.get_or_404(user_id)
-    tasks = Task.query.order_by(Task.label).all()
-    completed_task_ids = {submission.task_id for submission in user.submissions}
+    enrollments = CourseEnrollment.query.filter_by(user_id=user_id).all()
+    completed_task_ids = {s.task_id for s in Submission.query.filter_by(user_id=user_id).all()}
 
-    return render_template("admin/user_task_overview.html", user=user, tasks=tasks, completed_task_ids=completed_task_ids)
+    grouped_tasks = {}
+    for enrollment in enrollments:
+        course = enrollment.course
+        tasks = Task.query.filter_by(course_id=course.id).order_by(Task.label).all()
 
-@admin.route('/trainer/mark_task_complete/<int:user_id>/<int:task_id>', methods=['POST'])
+        grouped_tasks[course.name] = {}
+        modules = [t for t in tasks if t.label.endswith('.0')]
+        for module in modules:
+            grouped_tasks[course.name][module.label] = {}
+            module_sections = [t for t in tasks if t.label.startswith(module.label[:-2]) and t.is_section_header and not t.label.endswith('.0')]
+            for section in module_sections:
+                grouped_tasks[course.name][module.label][section.label] = [t for t in tasks if t.label.startswith(section.label) and not t.is_section_header]
+
+    return render_template(
+        "admin/user_task_overview.html",
+        user=user,
+        grouped_tasks=grouped_tasks,
+        completed_task_ids=completed_task_ids
+    )
+
+@admin.route("/admin/trainer/mark_task_toggle/<int:user_id>/<int:task_id>", methods=["POST"])
 @login_required
-def mark_task_complete(user_id, task_id):
-    if not (current_user.is_trainer or current_user.is_admin or current_user.is_training_manager):
+def toggle_task_completion(user_id, task_id):
+    if not (current_user.is_admin or current_user.is_trainer or current_user.is_training_manager):
         abort(403)
 
-    existing = Submission.query.filter_by(user_id=user_id, task_id=task_id).first()
-    if not existing:
-        submission = Submission(user_id=user_id, task_id=task_id, content="Manually marked complete", passed=True)
-        db.session.add(submission)
-        db.session.commit()
+    action = request.form.get("action")
+    submission = Submission.query.filter_by(user_id=user_id, task_id=task_id).first()
 
-    flash("✅ Task marked complete!", "success")
-    return redirect(url_for('admin.trainer_user_task_view', user_id=user_id))
+    if action == "complete":
+        if not submission:
+            submission = Submission(user_id=user_id, task_id=task_id, status="completed")
+            db.session.add(submission)
+            assignment = TaskAssignment.query.filter_by(user_id=user_id, task_id=task_id).first()
+            if not assignment:
+                assignment = TaskAssignment(user_id=user_id, task_id=task_id, status="completed")
+                db.session.add(assignment)
+            else:
+                assignment.status = "completed"
+    elif action == "incomplete":
+        if submission:
+            db.session.delete(submission)
+
+    db.session.commit()
+    flash("Task updated successfully.", "success")
+    return redirect(url_for("admin.trainer_user_task_view", user_id=user_id))
