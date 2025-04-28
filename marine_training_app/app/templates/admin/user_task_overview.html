@@ -32,7 +32,15 @@
                 </form>
               {% endif %}
               </li>
-            {% endfor %}
+              {% for submission in submissions %}
+                {% if submission.uploaded_file %}
+                  <p>Uploaded File: 
+                    <a href="{{ url_for('main.download_submission', user_id=submission.user_id, task_id=submission.task_id, filename=submission.uploaded_file) }}" target="_blank">
+                      {{ submission.uploaded_file }}
+                    </a>
+                  </p>
+                {% endif %}
+              {% endfor %}
           </ul>
         {% endfor %}
       {% endfor %}

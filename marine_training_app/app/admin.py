@@ -6,7 +6,8 @@ from wtforms import StringField, TextAreaField, SubmitField
 from wtforms.validators import DataRequired, Optional
 from .forms import TaskForm, OrgAssignmentForm
 import json
-from .utils import natural_key 
+from .utils import natural_key
+import os
 admin = Blueprint("admin", __name__)
 
 # ✅ Admin Dashboard
@@ -515,3 +516,29 @@ def toggle_task_completion(user_id, task_id):
     db.session.commit()
     flash("Task updated successfully.", "success")
     return redirect(url_for("admin.trainer_user_task_view", user_id=user_id))
+
+@admin.route("/trainer/delete_submission/<int:submission_id>", methods=["POST"])
+@login_required
+def trainer_delete_submission(submission_id):
+    UPLOAD_FOLDER = os.path.join(os.getcwd(), "uploads")  # for local dev
+
+    # You should protect this route to Admins/Trainers only
+    if not current_user.is_trainer and not current_user.is_admin:
+        flash("⚠️ You do not have permission to delete submissions.", "danger")
+        return redirect(url_for("main.dashboard"))
+
+    submission = Submission.query.get_or_404(submission_id)
+
+    # Delete associated file if it exists
+    if submission.uploaded_file:
+        folder_path = os.path.join(UPLOAD_FOLDER, str(submission.user_id), str(submission.task_id))
+        file_path = os.path.join(folder_path, submission.uploaded_file)
+        if os.path.exists(file_path):
+            os.remove(file_path)
+
+    # Delete the submission record
+    db.session.delete(submission)
+    db.session.commit()
+
+    flash("✅ Submission and upload deleted by trainer/admin.", "success")
+    return redirect(request.referrer or url_for("admin.trainer_dashboard"))

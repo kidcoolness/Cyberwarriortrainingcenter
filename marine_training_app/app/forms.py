@@ -7,7 +7,7 @@ from wtforms.validators import DataRequired, Optional
 import json
 from flask_wtf import FlaskForm
 from wtforms import StringField, PasswordField, TextAreaField, SubmitField
-from wtforms.validators import DataRequired, Email, Optional, EqualTo
+from wtforms.validators import DataRequired, Email, Optional, EqualTo, Length
 from flask_wtf.file import FileField, FileAllowed
 
 class LoginForm(FlaskForm):
@@ -50,6 +50,7 @@ class TaskForm(FlaskForm):
     submit = SubmitField("Save Task")
 
 class EditProfileForm(FlaskForm):
+    name = StringField('Display Name', validators=[DataRequired(), Length(min=2, max=50)])
     email = StringField("Email", validators=[Optional(), Email()])
     current_password = PasswordField("Current Password", validators=[Optional()])
     new_password = PasswordField("New Password", validators=[Optional()])

@@ -29,6 +29,8 @@
                       </a>
                       {% if task.id in completed_tasks %}
                         <span class="text-success">✅</span>
+                      {% elif task.submission and task.submission.uploaded_file %}
+                        <span class="text-info">📎</span>  {# Icon showing an upload exists even if task not completed yet #}
                       {% endif %}
                       </div>
                     {% endfor %}

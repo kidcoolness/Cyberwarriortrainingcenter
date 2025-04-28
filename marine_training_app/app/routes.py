@@ -16,7 +16,16 @@ from werkzeug.utils import secure_filename
 import os
 from flask import current_app
 # Define a Blueprint
+
 main = Blueprint("main", __name__)
+if os.environ.get("RENDER"):
+    UPLOAD_FOLDER = "/mnt/data/uploads"
+else:
+    UPLOAD_FOLDER = os.path.join(os.getcwd(), "uploads")
+ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'pdf', 'log', 'txt'}
+
+def allowed_file(filename):
+    return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
 def build_task_hierarchy(tasks):
     hierarchy = {}
@@ -154,7 +163,8 @@ def task_detail(task_id):
         mcq_form=mcq_form,
         trainer_form=trainer_form,
         assignment=assignment,
-        result=result
+        result=result,
+        user_submission=existing_submission
     )
 
 # Submit a task
@@ -162,15 +172,49 @@ def task_detail(task_id):
 @login_required
 def submit_task(task_id):
     submission_text = request.form.get("submission_text")
-    new_submission = Submission(
-        user_id=current_user.id,
-        task_id=task_id,
-        submission_text=submission_text,
-        status="pending"
-    )
-    db.session.add(new_submission)
+    uploaded_file = request.files.get("file")
+
+    # Check if the user already has a submission for this task
+    submission = Submission.query.filter_by(user_id=current_user.id, task_id=task_id).first()
+
+    filename = None
+    if uploaded_file and allowed_file(uploaded_file.filename):
+        filename = secure_filename(uploaded_file.filename)
+        user_folder = os.path.join(UPLOAD_FOLDER, str(current_user.id), str(task_id))
+        os.makedirs(user_folder, exist_ok=True)
+        file_path = os.path.join(user_folder, filename)
+
+        # Delete old uploaded file if it exists
+        if submission and submission.uploaded_file:
+            old_file_path = os.path.join(user_folder, submission.uploaded_file)
+            if os.path.exists(old_file_path):
+                os.remove(old_file_path)
+
+        uploaded_file.save(file_path)
+    elif uploaded_file:
+        flash("❌ Invalid file type.", "danger")
+        return redirect(url_for("main.task_detail", task_id=task_id))
+
+    if submission:
+        # Update existing submission
+        submission.submission_text = submission_text
+        submission.uploaded_file = filename or submission.uploaded_file  # Only update if a new file uploaded
+        submission.status = "pending"
+    else:
+        # Create new submission
+        submission = Submission(
+            user_id=current_user.id,
+            task_id=task_id,
+            submission_text=submission_text,
+            status="pending",
+            uploaded_file=filename
+        )
+        db.session.add(submission)
+
     db.session.commit()
-    return redirect(url_for("main.dashboard"))
+
+    flash("✅ Task submitted successfully!", "success")
+    return redirect(url_for("main.task_detail", task_id=task_id))
 
 @main.route("/assign_task/<int:task_id>", methods=["POST"])
 @login_required
@@ -431,7 +475,8 @@ def submit_answer(task_id):
 def profile(user_id):
     user = User.query.get_or_404(user_id)
     completed_courses = CourseEnrollment.query.filter_by(user_id=user.id, completed=True).all()
-    return render_template("profile.html", user=user, completed_courses=completed_courses)
+    form = EditProfileForm(obj=user)
+    return render_template("profile.html", user=user, completed_courses=completed_courses, form=form)
 
 import os
 from werkzeug.utils import secure_filename
@@ -455,7 +500,8 @@ def edit_profile():
                 flash("❌ Incorrect current password.", "danger")
                 return redirect(url_for('main.edit_profile'))
 
-        # Update other fields
+        # Update name and other fields
+        current_user.name = form.name.data
         current_user.position = form.position.data
         current_user.accolades = form.accolades.data
 
@@ -559,3 +605,63 @@ def review_submissions():
 
     submissions = Submission.query.order_by(Submission.timestamp.desc()).all()
     return render_template("trainer/review_submissions.html", submissions=submissions)
+
+from flask import send_from_directory
+
+UPLOAD_FOLDER = os.path.join(os.getcwd(), "uploads")  # for local dev
+@main.route('/uploads/<int:user_id>/<int:task_id>/<filename>')
+@login_required
+def download_submission(user_id, task_id, filename):
+    folder_path = os.path.join(UPLOAD_FOLDER, str(user_id), str(task_id))
+    file_path = os.path.join(folder_path, filename)
+
+    if not os.path.exists(file_path):
+        return f"❌ File not found: {file_path}", 404
+
+    return send_from_directory(folder_path, filename, as_attachment=True)
+
+
+@main.route("/delete_submission/<int:task_id>", methods=["POST"])
+@login_required
+def delete_submission(task_id):
+    submission = Submission.query.filter_by(user_id=current_user.id, task_id=task_id).first()
+
+    if submission:
+        # Delete associated file if it exists
+        if submission.uploaded_file:
+            folder_path = os.path.join(UPLOAD_FOLDER, str(current_user.id), str(task_id))
+            file_path = os.path.join(folder_path, submission.uploaded_file)
+            if os.path.exists(file_path):
+                os.remove(file_path)
+
+        # Delete the submission itself
+        db.session.delete(submission)
+        db.session.commit()
+        flash("✅ Submission and upload deleted.", "success")
+    else:
+        flash("⚠️ No submission found to delete.", "warning")
+
+    return redirect(url_for("main.task_detail", task_id=task_id))
+
+
+@main.route("/delete_upload/<int:task_id>", methods=["POST"])
+@login_required
+def delete_uploaded_file(task_id):
+    submission = Submission.query.filter_by(user_id=current_user.id, task_id=task_id).first()
+
+    if submission and submission.uploaded_file:
+        # Remove the uploaded file
+        folder_path = os.path.join(UPLOAD_FOLDER, str(current_user.id), str(task_id))
+        file_path = os.path.join(folder_path, submission.uploaded_file)
+        if os.path.exists(file_path):
+            os.remove(file_path)
+        
+        # Clear the uploaded file field in the database
+        submission.uploaded_file = None
+        db.session.commit()
+
+        flash("✅ Uploaded file deleted.", "success")
+    else:
+        flash("⚠️ No uploaded file found.", "warning")
+
+    return redirect(url_for("main.task_detail", task_id=task_id))
