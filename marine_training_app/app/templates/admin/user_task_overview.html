@@ -1,6 +1,7 @@
 {% extends 'base.html' %}
 {% block title %}User Task Overview{% endblock %}
 {% block content %}
+
 <h2>Task Completion: {{ user.name }}</h2>
 <a href="{{ url_for('admin.trainer_user_tasks') }}" class="btn btn-secondary mb-3">🔙 Back to User List</a>
 
@@ -21,30 +22,32 @@
                   🔗 <strong>{{ task.label }}</strong> - {{ task.title }}
                 </div>
                 {% if task.id in completed_task_ids %}
-                <form method="POST" action="{{ url_for('admin.toggle_task_completion', user_id=user.id, task_id=task.id) }}" class="d-inline">
-                  <input type="hidden" name="action" value="incomplete">
-                  <button type="submit" class="btn btn-danger btn-sm">Undo</button>
-                </form>
-              {% else %}
-                <form method="POST" action="{{ url_for('admin.toggle_task_completion', user_id=user.id, task_id=task.id) }}" class="d-inline">
-                  <input type="hidden" name="action" value="complete">
-                  <button type="submit" class="btn btn-success btn-sm">Mark Complete</button>
-                </form>
-              {% endif %}
+                  <form method="POST" action="{{ url_for('admin.toggle_task_completion', user_id=user.id, task_id=task.id) }}" class="d-inline">
+                    <input type="hidden" name="action" value="incomplete">
+                    <button type="submit" class="btn btn-danger btn-sm">Undo</button>
+                  </form>
+                {% else %}
+                  <form method="POST" action="{{ url_for('admin.toggle_task_completion', user_id=user.id, task_id=task.id) }}" class="d-inline">
+                    <input type="hidden" name="action" value="complete">
+                    <button type="submit" class="btn btn-success btn-sm">Mark Complete</button>
+                  </form>
+                {% endif %}
               </li>
               {% for submission in submissions %}
-                {% if submission.uploaded_file %}
-                  <p>Uploaded File: 
+                {% if submission.uploaded_file and submission.task_id == task.id %}
+                  <p class="ms-5">Uploaded File:
                     <a href="{{ url_for('main.download_submission', user_id=submission.user_id, task_id=submission.task_id, filename=submission.uploaded_file) }}" target="_blank">
                       {{ submission.uploaded_file }}
                     </a>
                   </p>
                 {% endif %}
               {% endfor %}
+            {% endfor %}
           </ul>
         {% endfor %}
       {% endfor %}
     </div>
   </div>
 {% endfor %}
+
 {% endblock %}
