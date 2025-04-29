@@ -5,6 +5,9 @@ from flask_login import LoginManager
 from .routes import main
 from .models import db, User
 from ..config import Config
+from .uploads import uploads
+from .bugs import bugs
+from .memes import memes
 #from .utils import natural_key  # or .utils if same-level
 
 migrate = Migrate()
@@ -33,6 +36,9 @@ def create_app():
     app.register_blueprint(auth)
     app.register_blueprint(main)
     app.register_blueprint(admin, url_prefix="/admin")
+    app.register_blueprint(uploads)
+    app.register_blueprint(bugs)
+    app.register_blueprint(memes)
 
     return app
 

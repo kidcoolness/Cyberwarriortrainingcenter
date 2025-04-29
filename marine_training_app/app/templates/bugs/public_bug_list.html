@@ -1,0 +1,85 @@
+{% extends "base.html" %}
+{% block title %}Bug Tracker{% endblock %}
+{% block content %}
+<h2>🐛 Current Issues and Fixes</h2>
+
+<h3>⏳ Open Bugs</h3>
+{% if open_bugs %}
+<table class="table table-striped">
+  <thead>
+    <tr>
+      <th>Bug ID</th>
+      <th>Title</th>
+      <th>Description</th>
+      <th>Reported</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for bug in open_bugs %}
+    <tr>
+      <td>#{{ "%04d"|format(bug.id) }}</td>
+      <td>{{ bug.title }}</td>
+      <td>{{ bug.description }}</td>
+      <td>{{ bug.timestamp.strftime('%Y-%m-%d') }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% else %}
+  <p>No open bugs! 🎉</p>
+{% endif %}
+
+<h3 class="mt-5">⚠️ Unresolved Bugs</h3>
+{% if unresolved_bugs %}
+<table class="table table-warning table-striped">
+  <thead>
+    <tr>
+      <th>Bug ID</th>
+      <th>Title</th>
+      <th>Description</th>
+      <th>Reported</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for bug in unresolved_bugs %}
+    <tr>
+      <td>#{{ "%04d"|format(bug.id) }}</td>
+      <td>{{ bug.title }}</td>
+      <td>{{ bug.description }}</td>
+      <td>{{ bug.timestamp.strftime('%Y-%m-%d') }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% else %}
+  <p>No unresolved bugs right now!</p>
+{% endif %}
+
+<h3 class="mt-5">✅ Resolved Bugs</h3>
+{% if resolved_bugs %}
+<table class="table table-success table-striped">
+  <thead>
+    <tr>
+      <th>Bug ID</th>
+      <th>Title</th>
+      <th>Reported</th>
+      <th>Resolved</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for bug in resolved_bugs %}
+    <tr>
+      <td>#{{ "%04d"|format(bug.id) }}</td>
+      <td>{{ bug.title }}</td>
+      <td>{{ bug.timestamp.strftime('%Y-%m-%d') }}</td>
+      <td>{{ bug.timestamp.strftime('%Y-%m-%d') }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% else %}
+  <p>No bugs have been resolved yet.</p>
+{% endif %}
+
+<a href="{{ url_for('main.dashboard') }}" class="btn btn-secondary mt-4">⬅️ Back to Dashboard</a>
+{% endblock %}

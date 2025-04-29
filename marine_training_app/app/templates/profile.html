@@ -35,4 +35,14 @@
     <p>No accolades yet.</p>
 {% endif %}
 
+{% if current_user.badges %}
+  <h5>🎖️ Badges:</h5>
+  <ul>
+    {% for badge in current_user.badges.split(',') %}
+      <li>{{ badge }}</li>
+    {% endfor %}
+  </ul>
+{% else %}
+  <p>No badges yet.</p>
+{% endif %}
 {% endblock %}

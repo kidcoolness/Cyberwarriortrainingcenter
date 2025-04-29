@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+{% block title %}Upload Meme{% endblock %}
+{% block content %}
+<h2>🎉 Submit Your Meme!</h2>
+
+<form method="POST" enctype="multipart/form-data">
+  <div class="mb-3">
+    <label for="meme" class="form-label">Upload Meme Image:</label>
+    <input type="file" class="form-control" id="meme" name="meme" accept="image/*" required>
+  </div>
+  <button type="submit" class="btn btn-primary">Upload Meme</button>
+</form>
+
+<a href="{{ url_for('main.dashboard') }}" class="btn btn-secondary mt-3">⬅️ Back to Dashboard</a>
+{% endblock %}

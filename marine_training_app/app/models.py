@@ -5,7 +5,6 @@ from flask_wtf import FlaskForm
 from wtforms import StringField, TextAreaField, SubmitField, BooleanField, SelectField, RadioField
 from wtforms.validators import DataRequired
 import json
-from datetime import datetime
 
 db = SQLAlchemy()
 
@@ -34,6 +33,15 @@ class User(db.Model, UserMixin):
         if self.is_admin:
             roles.append("Admin")
         return roles
+
+    last_active = db.Column(db.DateTime, default=datetime.utcnow)
+    badges = db.Column(db.String(512), default="")
+    streak_days = db.Column(db.Integer, default=0)
+
+    # Relationships
+    uploads = db.relationship('Upload', backref='user', lazy=True)
+    certificates = db.relationship('Certificate', backref='user', lazy=True)
+    memes = db.relationship('Meme', backref='user', lazy=True)
 
 class Task(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -134,3 +142,37 @@ class Module(db.Model):
     name = db.Column(db.String(128), nullable=False)
     course_id = db.Column(db.Integer, db.ForeignKey('course.id'), nullable=False)
     sections = db.relationship("Section", backref="module", lazy=True)
+
+class Upload(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    task_id = db.Column(db.Integer, db.ForeignKey('task.id'), nullable=True)
+    filename = db.Column(db.String(255), nullable=False)
+    upload_time = db.Column(db.DateTime, default=datetime.utcnow)
+    upload_type = db.Column(db.String(50), default='task')  # 'task', 'external_cert', 'meme'
+
+class BugReport(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=True)
+    title = db.Column(db.String(255), nullable=False)
+    description = db.Column(db.Text, nullable=False)
+    status = db.Column(db.String(50), default='open')  # 'open', 'resolved'
+    timestamp = db.Column(db.DateTime, default=datetime.utcnow)
+
+class Meme(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    image_filename = db.Column(db.String(255), nullable=False)
+    votes = db.Column(db.Integer, default=0)
+    timestamp = db.Column(db.DateTime, default=datetime.utcnow)
+
+class Certificate(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    course_id = db.Column(db.Integer, db.ForeignKey('course.id'), nullable=False)
+    awarded_date = db.Column(db.DateTime, default=datetime.utcnow)
+
+class StreakLog(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    date_logged = db.Column(db.Date, default=datetime.utcnow().date)
