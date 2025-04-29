@@ -45,7 +45,7 @@ class User(db.Model, UserMixin):
 
 class Task(db.Model):
     id = db.Column(db.Integer, primary_key=True)
-    course_id = db.Column(db.Integer, db.ForeignKey("course.id"), nullable=False)
+    course_id = db.Column(db.Integer, db.ForeignKey('course.id', ondelete='CASCADE'), nullable=False)
     title = db.Column(db.String(255), nullable=False)
     label = db.Column(db.String(50), nullable=False)  # e.g., "1.0", "1.1", "1.1.1"
     section_label = db.Column(db.String(50), nullable=True)  # deprecated
@@ -57,6 +57,8 @@ class Task(db.Model):
     requires_upload = db.Column(db.Boolean, default=False)
     choices = db.Column(db.Text, nullable=True)  # For MCQ
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    assignments = db.relationship('TaskAssignment', backref='task', cascade='all, delete')
+
     @property
     def number(self):
         return self.label
@@ -97,26 +99,27 @@ class Setting(db.Model):
 class TaskAssignment(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=False)
-    task_id = db.Column(db.Integer, db.ForeignKey("task.id"), nullable=False)
+    task_id = db.Column(db.Integer, db.ForeignKey("task.id", ondelete="CASCADE"), nullable=False)  # ✅ ADD ondelete
     status = db.Column(db.String(20), default="incomplete")  # "incomplete", "in progress", "completed"
     assigned_at = db.Column(db.DateTime, default=datetime.utcnow)
 
-    task = db.relationship("Task", backref="assignments")
     user = db.relationship("User", backref="assignments")
 
 class Course(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(255), nullable=False)
     description = db.Column(db.Text, nullable=False)
+    enrollments = db.relationship("CourseEnrollment", backref="course", cascade="all, delete")  # KEEP
+    tasks = db.relationship("Task", backref="course", cascade="all, delete")  # ✅ NEW
+
 
 class CourseEnrollment(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=False)
-    course_id = db.Column(db.Integer, db.ForeignKey("course.id"), nullable=False)
+    course_id = db.Column(db.Integer, db.ForeignKey("course.id", ondelete="CASCADE"), nullable=False)
     progress = db.Column(db.Integer, default=0)  
     enrolled_at = db.Column(db.DateTime, default=datetime.utcnow)
     completed = db.Column(db.Boolean, default=False)  # ✅ Track if course is completed
-    course = db.relationship("Course", backref="enrollments")
     user = db.relationship("User", backref="enrollments")  # ✅ Avoids circular dependency
 
 class CourseTask(db.Model):

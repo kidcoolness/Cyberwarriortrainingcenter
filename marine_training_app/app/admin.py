@@ -542,3 +542,22 @@ def trainer_delete_submission(submission_id):
 
     flash("✅ Submission and upload deleted by trainer/admin.", "success")
     return redirect(request.referrer or url_for("admin.trainer_dashboard"))
+
+@admin.route('/admin/delete_user/<int:user_id>', methods=['POST'])
+@login_required
+def delete_user(user_id):
+    if not current_user.is_admin:
+        flash("❌ You do not have permission to delete users.", "danger")
+        return redirect(url_for('admin.dashboard'))
+
+    user = User.query.get_or_404(user_id)
+
+    # Optional: Prevent deleting self
+    if user.id == current_user.id:
+        flash("⚠️ You cannot delete your own account from this panel.", "warning")
+        return redirect(url_for('admin.manage_users'))
+
+    db.session.delete(user)
+    db.session.commit()
+    flash(f"🗑️ User {user.name} deleted.", "success")
+    return redirect(url_for('admin.manage_users'))
