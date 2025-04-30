@@ -19,7 +19,16 @@
     <tr>
       <td>{{ sub.user.name }}</td>
       <td>{{ sub.task.label }} - {{ sub.task.title }}</td>
-      <td>{{ sub.submission_text }}</td>
+      <td>
+        {{ sub.submission_text }}
+        {% if sub.uploaded_file %}
+          <br>
+          <strong>Uploaded File:</strong>
+          <a href="{{ url_for('main.download_submission', user_id=sub.user.id, task_id=sub.task.id, filename=sub.uploaded_file) }}" target="_blank">
+            {{ sub.uploaded_file }}
+          </a>
+        {% endif %}
+      </td>
       <td>
         {% if sub.status == 'approved' %}
           ✅ Approved
@@ -31,12 +40,21 @@
       </td>
       <td>{{ sub.timestamp.strftime('%Y-%m-%d %H:%M') }}</td>
       <td>
+        <!-- Approve/Reject Form -->
         <form method="POST" action="{{ url_for('main.review_submission', submission_id=sub.id) }}">
           <textarea name="feedback" class="form-control mb-2" placeholder="Feedback">{{ sub.review.feedback if sub.review else '' }}</textarea>
           <button name="approved" value="true" class="btn btn-success btn-sm">Approve</button>
           <button name="approved" value="false" class="btn btn-danger btn-sm">Reject</button>
         </form>
+      
+        <!-- NEW: Delete Submission Form -->
+        <form method="POST" action="{{ url_for('admin.trainer_delete_submission', submission_id=sub.id) }}" style="margin-top: 8px;">
+          <button type="submit" class="btn btn-outline-danger btn-sm" onclick="return confirm('Are you sure you want to delete this submission and its upload?')">
+            ❌ Delete
+          </button>
+        </form>
       </td>
+      
     </tr>
     {% endfor %}
   </tbody>

@@ -1,0 +1,45 @@
+{% extends 'base.html' %}
+{% block title %}User Task Completion{% endblock %}
+
+{% block content %}
+<h2>Task Completion for {{ user.first_name }} {{ user.last_name }}</h2>
+<p><strong>Username:</strong> {{ user.username }}</p>
+<p><strong>Email:</strong> {{ user.email }}</p>
+
+<table class="table table-striped table-bordered mt-4">
+  <thead>
+    <tr>
+      <th>Task Label</th>
+      <th>Task Title</th>
+      <th>Status</th>
+      <th>Mark Complete</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for task in tasks %}
+    <tr>
+      <td>{{ task.label }}</td>
+      <td>{{ task.title }}</td>
+      <td>
+        {% if task.id in completed_task_ids %}
+          <span class="badge bg-success">✅ Completed</span>
+        {% else %}
+          <span class="badge bg-secondary">❌ Not Completed</span>
+        {% endif %}
+      </td>
+      <td>
+        {% if task.id not in completed_task_ids %}
+        <form method="POST" action="{{ url_for('trainer.mark_task_complete', user_id=user.id, task_id=task.id) }}">
+          <button class="btn btn-sm btn-outline-success" type="submit">Mark Complete</button>
+        </form>
+        {% else %}
+        <span class="text-muted">Already complete</span>
+        {% endif %}
+      </td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+
+<a href="{{ url_for('trainer.select_user') }}" class="btn btn-secondary mt-3">⬅ Back to User List</a>
+{% endblock %}

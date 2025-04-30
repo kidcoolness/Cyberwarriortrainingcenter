@@ -26,7 +26,11 @@
             <li class="nav-item"><a class="nav-link" href="{{ url_for('main.profile', user_id=current_user.id) }}">My Profile</a></li>
             <li class="nav-item"><a class="nav-link" href="{{ url_for('main.edit_profile') }}">Edit Profile</a></li>
             <li class="nav-item"><a class="nav-link" href="{{ url_for('main.leaderboard') }}">Leaderboard</a></li>
-
+            <li class="nav-item"><a class="nav-link" href="{{ url_for('uploads.my_uploads') }}">📂 My Uploads</a></li>
+            <li class="nav-item"><a class="nav-link" href="{{ url_for('bugs.submit_bug') }}">🐛 Submit a Bug</a></li>
+            <li class="nav-item"><a class="nav-link" href="{{ url_for('bugs.public_bug_list') }}">🐛 Public Bug Bulletin</a></li>
+            <li class="nav-item"><a class="nav-link" href="{{ url_for('memes.upload_meme') }}">🎉 Upload Meme</a></li>
+            <li class="nav-item"><a class="nav-link" href="{{ url_for('memes.meme_list') }}">🗳️ Vote Memes</a></li>
             <!-- Training Manager or Admin Access -->
             {% if current_user.is_admin or current_user.is_training_manager %}
             <li class="nav-item dropdown">
@@ -39,12 +43,15 @@
                 <li><a class="dropdown-item" href="{{ url_for('main.review_submissions') }}">Review Graded Submissions</a></li>
                 <li><a class="dropdown-item" href="{{ url_for('main.export_performance') }}">Export Performance CSV</a></li>
                 <li><a class="dropdown-item" href="{{ url_for('admin.manage_courses') }}">Manage Courses</a>
+                <li><a class="dropdown-item" href="{{ url_for('admin.trainer_user_tasks') }}">View User Task Completion</a></li>
               </ul>
             </li>
             {% endif %}
 
             {% if current_user.is_admin %}
               <li class="nav-item"><a class="nav-link" href="{{ url_for('admin.manage_users') }}">Manage Users</a></li>
+              <li class="nav-item"><a class="nav-link" href="{{ url_for('uploads.admin_uploads') }}">🛡️ Manage Uploads</a></li>
+              <li class="nav-item"><a class="nav-link" href="{{ url_for('bugs.admin_bugs') }}">🛡️ Manage Bugs</a></li>
             {% endif %}
 
             <!-- Logout -->

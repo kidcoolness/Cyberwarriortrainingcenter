@@ -1,11 +1,13 @@
 from flask import Blueprint, render_template, request, redirect, url_for, flash
 from flask_login import login_required, current_user
-from .models import db, User, Task, Course, CourseTask, CourseEnrollment
+from .models import db, User, Task, Course, CourseTask, CourseEnrollment, Submission,TaskAssignment
 from flask_wtf import FlaskForm
 from wtforms import StringField, TextAreaField, SubmitField
 from wtforms.validators import DataRequired, Optional
 from .forms import TaskForm, OrgAssignmentForm
 import json
+from .utils import natural_key
+import os
 admin = Blueprint("admin", __name__)
 
 # ✅ Admin Dashboard
@@ -94,7 +96,10 @@ def edit_course(course_id):
         ("api", "TryHackMe API-Graded")
     ]
 
-    tasks = Task.query.filter_by(course_id=course_id).order_by(Task.label).all()
+    tasks = sorted(
+        Task.query.filter_by(course_id=course_id).all(),
+        key=lambda t: natural_key(t.label)
+    )
 
     if form.validate_on_submit():
         course.name = form.name.data
@@ -166,8 +171,6 @@ def create_task(course_id):
 
     return render_template("admin/create_task.html", form=form)
 
-from .forms import TaskForm
-
 @admin.route("/edit_task/<int:task_id>", methods=["GET", "POST"])
 @login_required
 def edit_task(task_id):
@@ -224,19 +227,6 @@ def edit_task(task_id):
         return redirect(url_for("admin.edit_course", course_id=task.course_id))
 
     return render_template("admin/edit_task.html", form=form, task=task, course_id=task.course_id)
-
-@admin.route("/delete_task/<int:task_id>", methods=["POST"])
-@login_required
-def delete_task(task_id):
-    if not current_user.is_admin:
-        flash("Access denied: Admins only.", "danger")
-        return redirect(url_for("main.dashboard"))
-
-    task = Task.query.get_or_404(task_id)
-    db.session.delete(task)
-    db.session.commit()
-    flash("Task deleted successfully!", "success")
-    return redirect(url_for("admin.edit_course", course_id=task.course.id))
 
 class CourseForm(FlaskForm):
     name = StringField("Course Name", validators=[DataRequired()])
@@ -332,3 +322,242 @@ def create_section(course_id):
     flash("✅ Section created!", "success")
     return redirect(url_for("admin.edit_course", course_id=course_id))
 
+@admin.route("/edit_module/<int:module_id>", methods=["GET", "POST"])
+@login_required
+def edit_module(module_id):
+    module = Module.query.get_or_404(module_id)
+    form = EditModuleForm(obj=module)
+    if form.validate_on_submit():
+        module.name = form.name.data
+        db.session.commit()
+        flash("Module updated successfully!", "success")
+        return redirect(request.referrer or url_for("admin.manage_courses"))
+    return render_template("admin/edit_module.html", form=form)
+
+@admin.route("/edit_section/<int:section_id>", methods=["GET", "POST"])
+@login_required
+def edit_section(section_id):
+    section = Section.query.get_or_404(section_id)
+    form = EditSectionForm(obj=section)
+    if form.validate_on_submit():
+        section.name = form.name.data
+        db.session.commit()
+        flash("Section updated successfully!", "success")
+        return redirect(request.referrer or url_for("admin.manage_courses"))
+    return render_template("admin/edit_section.html", form=form)
+
+@admin.route("/edit_label/<int:label_id>", methods=["GET", "POST"])
+@login_required
+def edit_label(label_id):
+    label = Label.query.get_or_404(label_id)
+    form = EditLabelForm(obj=label)
+
+    if form.validate_on_submit():
+        label.label = form.label.data
+        label.name = form.name.data
+        db.session.commit()
+        flash("Label updated successfully!", "success")
+        return redirect(url_for("admin.manage_courses"))
+
+    return render_template("admin/edit_label.html", form=form, label=label)
+
+@admin.route('/edit_module_section/<int:item_id>', methods=['GET', 'POST'])
+@login_required
+def edit_module_section(item_id):
+    if not (current_user.is_trainer or current_user.is_admin or current_user.is_training_manager):
+        abort(403)
+    
+    item = Task.query.get_or_404(item_id)
+    if request.method == 'POST':
+        new_label = request.form.get("label")
+        new_title = request.form.get("title")
+        item.label = new_label
+        item.title = new_title
+        db.session.commit()
+        flash("Module/Section name updated.", "success")
+        return redirect(url_for('admin.manage_courses'))
+
+    return render_template("admin/edit_module_section.html", item=item)
+
+@admin.route("/rename_label", methods=["POST"])
+@login_required
+def rename_label():
+    if not (current_user.is_admin or current_user.is_trainer or current_user.is_training_manager):
+        abort(403)
+
+    label_id = request.form.get("label_id")
+    new_title = request.form.get("new_name")
+    label_type = request.form.get("label_type")
+
+    task = Task.query.get_or_404(label_id)
+
+    if label_type not in ["module", "section"]:
+        flash("Invalid label type", "danger")
+        return redirect(url_for("admin.manage_courses"))
+
+    task.title = new_title
+    db.session.commit()
+    flash(f"{label_type.capitalize()} renamed successfully!", "success")
+
+    return redirect(url_for("admin.edit_course", course_id=task.course_id))
+
+@admin.route("/delete_task/<int:task_id>", methods=["POST"])
+@login_required
+def delete_task(task_id):
+    task = Task.query.get_or_404(task_id)
+    # Delete submissions linked to this task
+    Submission.query.filter_by(task_id=task.id).delete()
+    db.session.delete(task)
+    db.session.commit()
+    flash("Task deleted successfully.", "success")
+    return redirect(url_for("admin.edit_course", course_id=task.course_id))
+
+@admin.route("/delete_section/<int:course_id>/<string:section_label>", methods=["POST"])
+@login_required
+def delete_section(course_id, section_label):
+    # Get all tasks under this section (including the section header itself)
+    tasks_to_delete = Task.query.filter(
+        Task.course_id == course_id,
+        Task.label.startswith(section_label)
+    ).all()
+
+    for task in tasks_to_delete:
+        Submission.query.filter_by(task_id=task.id).delete()
+        db.session.delete(task)
+
+    db.session.commit()
+    flash("Section and all associated tasks deleted.", "success")
+    return redirect(url_for("admin.edit_course", course_id=course_id))
+
+@admin.route("/delete_module/<int:course_id>/<string:module_label>", methods=["POST"])
+@login_required
+def delete_module(course_id, module_label):
+    # Get all tasks under this module (including section headers and tasks)
+    tasks_to_delete = Task.query.filter(
+        Task.course_id == course_id,
+        Task.label.startswith(module_label)
+    ).all()
+
+    for task in tasks_to_delete:
+        Submission.query.filter_by(task_id=task.id).delete()
+        db.session.delete(task)
+
+    db.session.commit()
+    flash("Module and all associated sections and tasks deleted.", "success")
+    return redirect(url_for("admin.edit_course", course_id=course_id))
+
+@admin.route('/trainer/user_tasks', methods=['GET', 'POST'])
+@login_required
+def trainer_user_tasks():
+    if not (current_user.is_trainer or current_user.is_admin or current_user.is_training_manager):
+        abort(403)
+
+    #users = User.query.order_by(User.last_name).all()
+    users = sorted(
+        User.query.all(),
+        key=lambda u: (str(u.name).split()[1] if len(str(u.name).split()) > 1 else "")
+    )
+    
+    return render_template("admin/trainer_user_selector.html", users=users)
+
+@admin.route('/trainer/user_tasks/<int:user_id>')
+@login_required
+def trainer_user_task_view(user_id):
+    if not (current_user.is_trainer or current_user.is_admin or current_user.is_training_manager):
+        abort(403)
+
+    user = User.query.get_or_404(user_id)
+    enrollments = CourseEnrollment.query.filter_by(user_id=user_id).all()
+    completed_task_ids = {s.task_id for s in Submission.query.filter_by(user_id=user_id).all()}
+
+    grouped_tasks = {}
+    for enrollment in enrollments:
+        course = enrollment.course
+        tasks = Task.query.filter_by(course_id=course.id).order_by(Task.label).all()
+
+        grouped_tasks[course.name] = {}
+        modules = [t for t in tasks if t.label.endswith('.0')]
+        for module in modules:
+            grouped_tasks[course.name][module.label] = {}
+            module_sections = [t for t in tasks if t.label.startswith(module.label[:-2]) and t.is_section_header and not t.label.endswith('.0')]
+            for section in module_sections:
+                grouped_tasks[course.name][module.label][section.label] = [t for t in tasks if t.label.startswith(section.label) and not t.is_section_header]
+
+    return render_template(
+        "admin/user_task_overview.html",
+        user=user,
+        grouped_tasks=grouped_tasks,
+        completed_task_ids=completed_task_ids
+    )
+
+@admin.route("/admin/trainer/mark_task_toggle/<int:user_id>/<int:task_id>", methods=["POST"])
+@login_required
+def toggle_task_completion(user_id, task_id):
+    if not (current_user.is_admin or current_user.is_trainer or current_user.is_training_manager):
+        abort(403)
+
+    action = request.form.get("action")
+    submission = Submission.query.filter_by(user_id=user_id, task_id=task_id).first()
+
+    if action == "complete":
+        if not submission:
+            submission = Submission(user_id=user_id, task_id=task_id, status="completed")
+            db.session.add(submission)
+            assignment = TaskAssignment.query.filter_by(user_id=user_id, task_id=task_id).first()
+            if not assignment:
+                assignment = TaskAssignment(user_id=user_id, task_id=task_id, status="completed")
+                db.session.add(assignment)
+            else:
+                assignment.status = "completed"
+    elif action == "incomplete":
+        if submission:
+            db.session.delete(submission)
+
+    db.session.commit()
+    flash("Task updated successfully.", "success")
+    return redirect(url_for("admin.trainer_user_task_view", user_id=user_id))
+
+@admin.route("/trainer/delete_submission/<int:submission_id>", methods=["POST"])
+@login_required
+def trainer_delete_submission(submission_id):
+    UPLOAD_FOLDER = os.path.join(os.getcwd(), "uploads")  # for local dev
+
+    # You should protect this route to Admins/Trainers only
+    if not current_user.is_trainer and not current_user.is_admin:
+        flash("⚠️ You do not have permission to delete submissions.", "danger")
+        return redirect(url_for("main.dashboard"))
+
+    submission = Submission.query.get_or_404(submission_id)
+
+    # Delete associated file if it exists
+    if submission.uploaded_file:
+        folder_path = os.path.join(UPLOAD_FOLDER, str(submission.user_id), str(submission.task_id))
+        file_path = os.path.join(folder_path, submission.uploaded_file)
+        if os.path.exists(file_path):
+            os.remove(file_path)
+
+    # Delete the submission record
+    db.session.delete(submission)
+    db.session.commit()
+
+    flash("✅ Submission and upload deleted by trainer/admin.", "success")
+    return redirect(request.referrer or url_for("admin.trainer_dashboard"))
+
+@admin.route('/admin/delete_user/<int:user_id>', methods=['POST'])
+@login_required
+def delete_user(user_id):
+    if not current_user.is_admin:
+        flash("❌ You do not have permission to delete users.", "danger")
+        return redirect(url_for('admin.dashboard'))
+
+    user = User.query.get_or_404(user_id)
+
+    # Optional: Prevent deleting self
+    if user.id == current_user.id:
+        flash("⚠️ You cannot delete your own account from this panel.", "warning")
+        return redirect(url_for('admin.manage_users'))
+
+    db.session.delete(user)
+    db.session.commit()
+    flash(f"🗑️ User {user.name} deleted.", "success")
+    return redirect(url_for('admin.manage_users'))

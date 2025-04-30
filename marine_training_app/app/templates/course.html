@@ -4,7 +4,6 @@
 {% block content %}
 <h1>{{ course.name }}</h1>
 <p>{{ course.description }}</p>
-<h1 style="color:red">🔥 THIS IS course.html 🔥</h1>
 
 <div class="row mt-4">
   <!-- LEFT SIDEBAR: Task Navigation -->
@@ -26,10 +25,12 @@
                     {% for task in section.tasks %}
                     <div id="task-{{ task.id }}" class="ms-5">
                       <a href="#" class="task-link" data-task-url="/task/{{ task.id }}">{{ task.label }} – {{ task.title }}</a>
-                      {{ task.label }} – {{ task.title }}
+                      {{ task.label }}
                       </a>
                       {% if task.id in completed_tasks %}
-                      <span class="text-success">✅</span>
+                        <span class="text-success">✅</span>
+                      {% elif task.submission and task.submission.uploaded_file %}
+                        <span class="text-info">📎</span>  {# Icon showing an upload exists even if task not completed yet #}
                       {% endif %}
                       </div>
                     {% endfor %}

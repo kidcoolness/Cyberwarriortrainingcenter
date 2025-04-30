@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+{% block title %}Submit a Bug{% endblock %}
+{% block content %}
+<h2>🐛 Submit a Bug Report</h2>
+
+<form method="POST">
+  <div class="mb-3">
+    <label for="title" class="form-label">Bug Title</label>
+    <input type="text" class="form-control" id="title" name="title" required>
+  </div>
+  <div class="mb-3">
+    <label for="description" class="form-label">Bug Description</label>
+    <textarea class="form-control" id="description" name="description" rows="5" required></textarea>
+  </div>
+  <button type="submit" class="btn btn-primary">Submit Bug</button>
+</form>
+
+<a href="{{ url_for('main.dashboard') }}" class="btn btn-secondary mt-3">⬅️ Back to Dashboard</a>
+{% endblock %}

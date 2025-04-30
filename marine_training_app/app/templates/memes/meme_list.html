@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+{% block title %}Vote for Memes{% endblock %}
+{% block content %}
+<h2>🗳️ Meme Voting</h2>
+
+{% if memes %}
+<div class="row">
+  {% for meme in memes %}
+  <div class="col-md-6 mb-4">
+    <div class="card">
+      <img src="{{ url_for('static', filename='uploads/memes/' + meme.image_filename) }}" class="card-img-top" alt="Meme">
+      <div class="card-body">
+        <p>Uploaded by: {{ meme.user.name }}</p>
+        <p>Votes: {{ meme.votes }}</p>
+        <form method="POST">
+          <input type="hidden" name="meme_id" value="{{ meme.id }}">
+          <button type="submit" class="btn btn-success btn-sm">Vote</button>
+        </form>
+
+        {% if current_user.is_admin or current_user.is_trainer %}
+        <form method="POST" action="{{ url_for('memes.award_meme_winner', meme_id=meme.id) }}" class="mt-2">
+          <button type="submit" class="btn btn-warning btn-sm">🏅 Award Meme Master</button>
+        </form>
+        {% endif %}
+
+      </div>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+{% else %}
+  <p>No memes submitted yet.</p>
+{% endif %}
+
+{% endblock %}
