@@ -15,6 +15,7 @@ from werkzeug.security import check_password_hash, generate_password_hash
 from werkzeug.utils import secure_filename
 import os
 from flask import current_app
+from datetime import datetime
 # Define a Blueprint
 
 main = Blueprint("main", __name__)
@@ -154,7 +155,7 @@ def task_detail(task_id):
                 db.session.add(submission)
             db.session.commit()
             flash("✅ Submission sent for trainer review.", "success")
-            return redirect(url_for("main.course_page", course_id=task.course_id, _anchor=f"task-{task.id}"))
+            return redirect(url_for("main.task_detail", task_id=task.id))
 
     return render_template(
         "partials/task_content.html",
@@ -171,7 +172,8 @@ def task_detail(task_id):
 @main.route("/submit/<int:task_id>", methods=["POST"])
 @login_required
 def submit_task(task_id):
-    submission_text = request.form.get("submission_text")
+    #submission_text = request.form.get("submission_text")
+    submission_text = request.form.get("answer")
     uploaded_file = request.files.get("file")
 
     # Check if the user already has a submission for this task
@@ -303,7 +305,12 @@ def course_page(course_id):
         ).join(Task, TaskAssignment.task_id == Task.id)
         .filter(Task.course_id == course_id).all()
     ]
-
+    rejected_tasks = [
+    s.task_id for s in Submission.query.filter_by(user_id=current_user.id, status="rejected")
+    .join(Task, Submission.task_id == Task.id)
+    .filter(Task.course_id == course_id)
+    .all()
+    ]
     total_tasks = len([t for t in all_tasks if not t.is_section_header])
     completed_count = len(completed_tasks)
     progress = (completed_count / total_tasks * 100) if total_tasks > 0 else 0
@@ -317,13 +324,19 @@ def course_page(course_id):
 
     # 👇 Handle partial reloads (AJAX)
     if request.args.get("partial") == "1":
-        return render_template("partials/task_sidebar.html", task_hierarchy=task_hierarchy, completed_tasks=completed_tasks)
+        return render_template(
+            "partials/task_sidebar.html",
+            task_hierarchy=task_hierarchy, 
+            completed_tasks=completed_tasks,
+            rejected_tasks=rejected_tasks
+            )
 
     return render_template(
         "course.html",
         course=course,
         task_hierarchy=task_hierarchy,
         completed_tasks=completed_tasks,
+        rejected_tasks=rejected_tasks,
         progress=enrollment.progress
     )
 
@@ -542,14 +555,14 @@ def review_submission(submission_id):
         return "Unauthorized", 403
 
     submission = Submission.query.get_or_404(submission_id)
-    approved = request.form.get("approved") == "true"
     feedback = request.form.get("feedback", "")
+    action = request.form.get("action")
 
-    submission.status = "approved" if approved else "rejected"
-    submission.feedback = feedback
+    submission.feedback = feedback  # Always update feedback
 
-    # ✅ Mark task as complete if approved
-    if approved:
+    if action == "approve":
+        submission.status = "approved"
+        # Mark task complete
         assignment = TaskAssignment.query.filter_by(user_id=submission.user_id, task_id=submission.task_id).first()
         if not assignment:
             assignment = TaskAssignment(user_id=submission.user_id, task_id=submission.task_id, status="completed")
@@ -557,8 +570,13 @@ def review_submission(submission_id):
         else:
             assignment.status = "completed"
 
+    elif action == "reject":
+        submission.status = "rejected"
+
+    # "update" means feedback only, so status stays the same
+
     db.session.commit()
-    flash("✅ Submission reviewed successfully.", "success")
+    flash("✅ Submission review updated.", "success")
     return redirect(url_for("main.review_submissions"))
 
 @main.route("/export/performance")
@@ -603,8 +621,18 @@ def review_submissions():
         flash("Access denied.", "danger")
         return redirect(url_for("main.dashboard"))
 
-    submissions = Submission.query.order_by(Submission.timestamp.desc()).all()
-    return render_template("trainer/review_submissions.html", submissions=submissions)
+
+
+    pending = Submission.query.filter_by(status='pending').order_by(Submission.timestamp.desc()).all()
+    approved = Submission.query.filter_by(status='approved').order_by(Submission.timestamp.desc()).all()
+    rejected = Submission.query.filter_by(status='rejected').order_by(Submission.timestamp.desc()).all()
+
+    return render_template(
+        "trainer/review_submissions.html",
+        pending=pending,
+        approved=approved,
+        rejected=rejected
+    )
 
 from flask import send_from_directory
 

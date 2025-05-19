@@ -1,6 +1,6 @@
 from flask import Blueprint, render_template, request, redirect, url_for, flash
 from flask_login import login_required, current_user
-from .models import db, User, Task, Course, CourseTask, CourseEnrollment, Submission,TaskAssignment
+from .models import db, User, Task, Course, CourseTask, CourseEnrollment, Submission,TaskAssignment, TrainerReview
 from flask_wtf import FlaskForm
 from wtforms import StringField, TextAreaField, SubmitField
 from wtforms.validators import DataRequired, Optional
@@ -520,27 +520,35 @@ def toggle_task_completion(user_id, task_id):
 @admin.route("/trainer/delete_submission/<int:submission_id>", methods=["POST"])
 @login_required
 def trainer_delete_submission(submission_id):
-    UPLOAD_FOLDER = os.path.join(os.getcwd(), "uploads")  # for local dev
+    UPLOAD_FOLDER = os.path.join(os.getcwd(), "uploads")  # local dev only
 
-    # You should protect this route to Admins/Trainers only
     if not current_user.is_trainer and not current_user.is_admin:
         flash("⚠️ You do not have permission to delete submissions.", "danger")
         return redirect(url_for("main.dashboard"))
 
     submission = Submission.query.get_or_404(submission_id)
 
-    # Delete associated file if it exists
+    # 🔄 Delete uploaded file if it exists
     if submission.uploaded_file:
         folder_path = os.path.join(UPLOAD_FOLDER, str(submission.user_id), str(submission.task_id))
         file_path = os.path.join(folder_path, submission.uploaded_file)
         if os.path.exists(file_path):
             os.remove(file_path)
 
-    # Delete the submission record
+    # 🔄 Delete associated trainer review if it exists
+    review = TrainerReview.query.filter_by(submission_id=submission.id).first()
+    if review:
+        db.session.delete(review)
+
+    # Remove any task completion assignment
+    assignment = TaskAssignment.query.filter_by(user_id=submission.user_id, task_id=submission.task_id).first()
+    if assignment:
+        db.session.delete(assignment)
+
     db.session.delete(submission)
     db.session.commit()
 
-    flash("✅ Submission and upload deleted by trainer/admin.", "success")
+    flash("✅ Submission, file, and review deleted successfully.", "success")
     return redirect(request.referrer or url_for("admin.trainer_dashboard"))
 
 @admin.route('/admin/delete_user/<int:user_id>', methods=['POST'])

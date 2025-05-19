@@ -7,7 +7,7 @@ from datetime import datetime
 
 memes = Blueprint('memes', __name__)
 
-MEME_UPLOAD_FOLDER = os.path.join(os.getcwd(), 'uploads', 'memes')  # Adjust if needed
+MEME_UPLOAD_FOLDER = "/mnt/data/uploads"
 
 # Meme Upload
 @memes.route('/upload_meme', methods=['GET', 'POST'])
