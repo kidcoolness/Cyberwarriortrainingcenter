@@ -71,7 +71,7 @@ class Submission(db.Model):
     status = db.Column(db.String(50))  # pending, approved, rejected
     timestamp = db.Column(db.DateTime, default=datetime.utcnow)
     uploaded_file = db.Column(db.String(256), nullable=True)
-
+    feedback = db.Column(db.Text, nullable=True)
 
     # ✅ Relationships
     user = db.relationship("User", backref="submissions")

@@ -1,6 +1,13 @@
-{% extends 'base.html' %}
-{% block title %}Task – {{ task.label }}{% endblock %}
-{% block content %}
+{% with messages = get_flashed_messages(with_categories=true) %}
+  {% if messages %}
+    {% for category, message in messages %}
+      <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
+        {{ message }}
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+      </div>
+    {% endfor %}
+  {% endif %}
+{% endwith %}
 
 <div class="card">
   <div class="card-body">
@@ -14,7 +21,7 @@
     {% endif %}
 
     {% if task.grading_type == "auto" %}
-      <form method="POST">
+      <form method="POST" id="answer-form">
         {{ form.hidden_tag() }}
         <div class="mb-3">
           {{ form.answer.label(class="form-label") }}
@@ -24,7 +31,7 @@
       </form>
 
     {% elif task.grading_type == "mcq" %}
-      <form method="POST">
+      <form method="POST" id="answer-form">
         {{ mcq_form.hidden_tag() }}
         <div class="mb-3">
           {{ mcq_form.answer.label }}<br>
@@ -38,30 +45,30 @@
         <button type="submit" class="btn btn-primary">Submit</button>
       </form>
 
-      {% elif task.grading_type == 'trainer' %}
-      <form method="POST" action="{{ url_for('main.submit_task', task_id=task.id) }}" enctype="multipart/form-data">
+    {% elif task.grading_type == "trainer" %}
+      <form method="POST" enctype="multipart/form-data" id="answer-form">
         {{ trainer_form.hidden_tag() }}
-    
+
         <div class="mb-3">
           <label for="submission_text" class="form-label">Enter your answer for trainer review:</label>
           {{ trainer_form.answer(class="form-control", rows=5) }}
         </div>
-    
+
         <div class="mb-3">
           <label class="form-label">Upload supporting file (optional):</label>
           <input type="file" name="file" accept=".png,.jpg,.jpeg,.pdf,.log,.txt">
         </div>
-    
+
         <button type="submit" class="btn btn-primary">Submit Answer & Upload</button>
       </form>
-    
+
       {% if user_submission and user_submission.feedback %}
         <div class="alert alert-info mt-3">
           <strong>Trainer Feedback:</strong><br>
           {{ user_submission.feedback }}
         </div>
       {% endif %}
-    
+
       {% if user_submission and user_submission.uploaded_file %}
         <div class="mt-4">
           <p><strong>Uploaded File:</strong>
@@ -71,9 +78,6 @@
           </p>
         </div>
       {% endif %}
-
-    {% else %}
-      <p>This task requires trainer evaluation or file upload.</p>
     {% endif %}
   </div>
 </div>
@@ -89,5 +93,3 @@
     ⬅️ Back to My Courses
   </a>
 </div>
-
-{% endblock %}

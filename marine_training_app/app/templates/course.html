@@ -58,9 +58,13 @@
 
   <!-- RIGHT: Task Display Pane -->
   <div class="col-md-8" id="task-content">
-    <p class="text-muted">👉 Select a task from the left to begin.</p>
+    {% if selected_task %}
+      {% include "partials/task_content.html" %}
+    {% else %}
+      <p class="text-muted">👉 Select a task from the left to begin.</p>
+    {% endif %}
   </div>
-</div>
+  
 {% endblock %}
 
 
@@ -72,7 +76,7 @@
 
     // Load and inject task HTML
     function loadTask(url) {
-      fetch(url)
+      fetch(url + "?partial=1")
         .then(res => res.text())
         .then(html => {
           contentPane.innerHTML = html;
@@ -89,7 +93,7 @@
           e.preventDefault();
           const formData = new FormData(form);
 
-          fetch(window.location.href, {
+          fetch(window.location.href + '?partial=1', {
             method: 'POST',
             body: formData
           })
@@ -132,15 +136,32 @@
 
     // Initial binding of task links
     function bindTaskLinks() {
-      const taskLinks = document.querySelectorAll('.task-link');
-      taskLinks.forEach(link => {
-        link.addEventListener('click', function (e) {
-          e.preventDefault();
-          const url = link.dataset.taskUrl;
-          loadTask(url);
-        });
+    const taskLinks = document.querySelectorAll('.task-link');
+    const contentPane = document.getElementById('task-content');
+    const courseId = window.location.pathname.split("/")[2];
+
+    taskLinks.forEach(link => {
+      link.addEventListener('click', function (e) {
+        e.preventDefault();
+        const url = link.dataset.taskUrl;
+        const taskId = url.split("/").pop(); // Extract task ID from URL
+
+        fetch(url)
+          .then(res => res.text())
+          .then(html => {
+            contentPane.innerHTML = html;
+
+            // Update browser URL to keep course + task selected
+            const newUrl = `/course/${courseId}?task=${taskId}`;
+            window.history.pushState({}, '', newUrl);
+
+            // Rebind form inside the new content
+            bindForms(); 
+          });
       });
-    }
+    });
+  }
+
 
     bindTaskLinks();  // First load
   });
