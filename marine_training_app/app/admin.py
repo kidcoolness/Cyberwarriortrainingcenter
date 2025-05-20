@@ -520,7 +520,7 @@ def toggle_task_completion(user_id, task_id):
 @admin.route("/trainer/delete_submission/<int:submission_id>", methods=["POST"])
 @login_required
 def trainer_delete_submission(submission_id):
-    UPLOAD_FOLDER = os.path.join(os.getcwd(), "uploads")  # local dev only
+    UPLOAD_FOLDER = "/mnt/data/uploads"  # local dev only
 
     if not current_user.is_trainer and not current_user.is_admin:
         flash("⚠️ You do not have permission to delete submissions.", "danger")

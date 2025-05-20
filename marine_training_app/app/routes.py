@@ -22,7 +22,7 @@ main = Blueprint("main", __name__)
 if os.environ.get("RENDER"):
     UPLOAD_FOLDER = "/mnt/data/uploads"
 else:
-    UPLOAD_FOLDER = os.path.join(os.getcwd(), "uploads")
+    UPLOAD_FOLDER = "/mnt/data/uploads"
 ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'pdf', 'log', 'txt'}
 
 def allowed_file(filename):
@@ -96,7 +96,6 @@ def task_detail(task_id):
         try:
             mcq_form.answer.choices = [(c, c) for c in json.loads(task.choices)]
         except Exception as e:
-            print("⚠️ Failed to load MCQ choices:", e)
             mcq_form.answer.choices = []
 
     if request.method == "POST":
@@ -127,16 +126,15 @@ def task_detail(task_id):
         elif task.grading_type == "trainer":
             answer_text = request.form.get("answer", "").strip()
             uploaded_file = request.files.get("file")
-
             filename = None
+
             if uploaded_file and uploaded_file.filename != "":
                 from werkzeug.utils import secure_filename
                 import os
-                UPLOAD_FOLDER = os.path.join(os.getcwd(), "uploads")
-                user_folder = os.path.join(UPLOAD_FOLDER, str(current_user.id), str(task.id))
-                os.makedirs(user_folder, exist_ok=True)
+                UPLOAD_FOLDER = os.path.join("/mnt/data/uploads", str(current_user.id), str(task.id))
+                os.makedirs(UPLOAD_FOLDER, exist_ok=True)
                 filename = secure_filename(uploaded_file.filename)
-                uploaded_file.save(os.path.join(user_folder, filename))
+                uploaded_file.save(os.path.join(UPLOAD_FOLDER, filename))
 
             if answer_text or filename:
                 if existing_submission:
@@ -145,44 +143,32 @@ def task_detail(task_id):
                     if filename:
                         existing_submission.uploaded_file = filename
                 else:
-                    new_submission = Submission(
+                    submission = Submission(
                         user_id=current_user.id,
                         task_id=task.id,
                         submission_text=answer_text,
                         uploaded_file=filename,
                         status='pending'
                     )
-                    db.session.add(new_submission)
-
+                    db.session.add(submission)
                 db.session.commit()
                 flash("✅ Submission sent for trainer review.", "success")
-                existing_submission = Submission.query.filter_by(user_id=current_user.id, task_id=task.id).first()
-        if request.args.get("partial") == "1":
-            return render_template(
-                "partials/task_content.html",
-                task=task,
-                form=form,
-                mcq_form=mcq_form,
-                trainer_form=trainer_form,
-                assignment=assignment,
-                result=result,
-                user_submission=existing_submission
-            )
-    # Render partial for AJAX, full wrapper if direct access
-    if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
-        return render_template(
-            "partials/task_content.html",
+
+    existing_submission = Submission.query.filter_by(user_id=current_user.id, task_id=task.id).first()
+
+    if request.headers.get("X-Requested-With") == "XMLHttpRequest" or request.args.get("partial") == "1":
+        return render_template("partials/task_content.html",
             task=task,
             form=form,
             mcq_form=mcq_form,
             trainer_form=trainer_form,
             assignment=assignment,
             result=result,
-            user_submission=existing_submission
+            user_submission=existing_submission,
+            inside_course=True
         )
     else:
-        return render_template(
-            "task_wrapper.html",
+        return render_template("task_wrapper.html",
             task=task,
             form=form,
             mcq_form=mcq_form,
@@ -663,7 +649,7 @@ def review_submissions():
 
 from flask import send_from_directory
 
-UPLOAD_FOLDER = os.path.join(os.getcwd(), "uploads")  # for local dev
+UPLOAD_FOLDER = "/mnt/data/uploads"  # for local dev
 @main.route('/uploads/<int:user_id>/<int:task_id>/<filename>')
 @login_required
 def download_submission(user_id, task_id, filename):

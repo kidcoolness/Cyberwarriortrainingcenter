@@ -71,99 +71,73 @@
 {% block scripts %}
 <script>
   document.addEventListener('DOMContentLoaded', function () {
-    const taskLinks = document.querySelectorAll('.task-link');
     const contentPane = document.getElementById('task-content');
+    const courseId = window.location.pathname.split("/")[2];
 
-    // Load and inject task HTML
-    function loadTask(url) {
-      fetch(url + "?partial=1")
-        .then(res => res.text())
-        .then(html => {
-          contentPane.innerHTML = html;
-          window.history.pushState({}, '', url); // optional: update browser URL
-          bindForms(url); // 🔁 bind form submit to stay inside pane
+    function bindTaskLinks() {
+      const taskLinks = document.querySelectorAll('.task-link');
+      taskLinks.forEach(link => {
+        link.addEventListener('click', function (e) {
+          e.preventDefault();
+          const url = link.dataset.taskUrl;
+
+          fetch(url + "?partial=1", {
+            headers: {
+              "X-Requested-With": "XMLHttpRequest"
+            }
+          })
+          .then(res => res.text())
+          .then(html => {
+            contentPane.innerHTML = html;
+            bindAnswerForm(); // rebind after task loads
+            window.history.pushState({}, '', `/course/${courseId}?task=${url.split('/').pop()}`);
+          });
         });
+      });
     }
 
-    // Re-bind form inside task content
-    function bindForms() {
+    function bindAnswerForm() {
       const form = document.getElementById('answer-form');
       if (form) {
         form.addEventListener('submit', function (e) {
           e.preventDefault();
           const formData = new FormData(form);
+          const taskId = new URLSearchParams(window.location.search).get("task");
+          const taskUrl = `/task/${taskId}`;
 
-          fetch(window.location.href + '?partial=1', {
+
+          fetch(taskUrl, {
             method: 'POST',
-            body: formData
-          })
-          .then(res => {
-            if (res.redirected) {
-              // If redirect is triggered by Flask route
-              window.location.href = res.url;
-            } else {
-              return res.text();
+            body: formData,
+            headers: {
+              "X-Requested-With": "XMLHttpRequest"
             }
           })
+          .then(res => res.text())
           .then(html => {
-            if (html) {
-              document.getElementById('task-content').innerHTML = html;
-              bindForms(); // rebind after loading new content
-            }
+            contentPane.innerHTML = html;
+            bindAnswerForm(); // rebinding in case form remains
+            bindTaskLinks();  // ensure links are reattached
           });
         });
       }
     }
 
+    bindTaskLinks();
 
-    // 🔁 Optional: Refresh the course sidebar to show updated checkmarks
-    function refreshSidebar() {
-      const currentCourseId = window.location.pathname.split("/")[2];
-      fetch(`/course/${currentCourseId}?partial=1`)
-        .then(res => res.text())
-        fetch(`/course/${courseId}?partial=1`)
-        .then(res => res.text())
-        .then(html => {
-          document.querySelector('#sidebar').innerHTML = html;
-        
-          const newSidebar = tempDiv.querySelector('.col-md-4');
-          if (newSidebar) {
-            document.querySelector('.col-md-4').innerHTML = newSidebar.innerHTML;
-            bindTaskLinks(); // 🔁 rebinding after DOM update
-          }
-        });
-    }
-
-    // Initial binding of task links
-    function bindTaskLinks() {
-    const taskLinks = document.querySelectorAll('.task-link');
-    const contentPane = document.getElementById('task-content');
-    const courseId = window.location.pathname.split("/")[2];
-
-    taskLinks.forEach(link => {
-      link.addEventListener('click', function (e) {
-        e.preventDefault();
-        const url = link.dataset.taskUrl;
-        const taskId = url.split("/").pop(); // Extract task ID from URL
-
-        fetch(url)
-          .then(res => res.text())
-          .then(html => {
-            contentPane.innerHTML = html;
-
-            // Update browser URL to keep course + task selected
-            const newUrl = `/course/${courseId}?task=${taskId}`;
-            window.history.pushState({}, '', newUrl);
-
-            // Rebind form inside the new content
-            bindForms(); 
-          });
+    // Optional: Handle direct access to /course/<id>?task=<task_id>
+    const params = new URLSearchParams(window.location.search);
+    if (params.has('task')) {
+      const initialTaskUrl = `/task/${params.get('task')}`;
+      fetch(initialTaskUrl + "?partial=1", {
+        headers: { "X-Requested-With": "XMLHttpRequest" }
+      })
+      .then(res => res.text())
+      .then(html => {
+        contentPane.innerHTML = html;
+        bindAnswerForm();
       });
-    });
-  }
-
-
-    bindTaskLinks();  // First load
+    }
   });
 </script>
 {% endblock %}
