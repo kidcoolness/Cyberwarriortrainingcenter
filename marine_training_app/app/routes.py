@@ -22,7 +22,7 @@ main = Blueprint("main", __name__)
 if os.environ.get("RENDER"):
     UPLOAD_FOLDER = "/mnt/data/uploads"
 else:
-    UPLOAD_FOLDER = os.path.join(os.getcwd(), "uploads")
+    UPLOAD_FOLDER = "/mnt/data/uploads"
 ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'pdf', 'log', 'txt'}
 
 def allowed_file(filename):
@@ -86,42 +86,25 @@ def task_detail(task_id):
 
     form = AnswerForm()
     mcq_form = MCQForm()
-
-    # Load existing submission for trainer-graded tasks
     trainer_form = TrainerAnswerForm()
-    existing_submission = None
 
-    if task.grading_type == "trainer":
-        existing_submission = Submission.query.filter_by(user_id=current_user.id, task_id=task.id).first()
-        if existing_submission:
-            trainer_form.answer.data = existing_submission.submission_text
+    existing_submission = Submission.query.filter_by(user_id=current_user.id, task_id=task.id).first()
+    if task.grading_type == "trainer" and existing_submission:
+        trainer_form.answer.data = existing_submission.submission_text
 
-
-    # MCQ: Set choices dynamically
     if task.grading_type == "mcq" and task.choices:
         try:
             mcq_form.answer.choices = [(c, c) for c in json.loads(task.choices)]
-            print("✅ MCQ Choices Set:", mcq_form.answer.choices)
         except Exception as e:
-            print("⚠️ Failed to load MCQ choices:", e)
             mcq_form.answer.choices = []
 
-    # Trainer-graded: Check for existing submission
-    existing_submission = None
-    if task.grading_type == "trainer":
-        existing_submission = Submission.query.filter_by(user_id=current_user.id, task_id=task.id).first()
-        if existing_submission:
-            trainer_form.answer.data = existing_submission.submission_text  # prefill
-
-    # Form Handling
     if request.method == "POST":
         if task.grading_type == "auto" and form.validate_on_submit():
             user_answer = form.answer.data.strip()
             if task.correct_answer and user_answer.lower() == task.correct_answer.strip().lower():
                 result = "correct"
                 if not assignment:
-                    assignment = TaskAssignment(user_id=current_user.id, task_id=task.id, status="completed")
-                    db.session.add(assignment)
+                    db.session.add(TaskAssignment(user_id=current_user.id, task_id=task.id, status="completed"))
                 else:
                     assignment.status = "completed"
                 db.session.commit()
@@ -133,40 +116,67 @@ def task_detail(task_id):
             if user_answer == task.correct_answer:
                 result = "correct"
                 if not assignment:
-                    assignment = TaskAssignment(user_id=current_user.id, task_id=task.id, status="completed")
-                    db.session.add(assignment)
+                    db.session.add(TaskAssignment(user_id=current_user.id, task_id=task.id, status="completed"))
                 else:
                     assignment.status = "completed"
                 db.session.commit()
             else:
                 result = "incorrect"
 
-        elif task.grading_type == "trainer" and trainer_form.validate_on_submit():
-            if existing_submission:
-                existing_submission.submission_text = trainer_form.answer.data
-                existing_submission.status = 'pending'
-            else:
-                submission = Submission(
-                    user_id=current_user.id,
-                    task_id=task.id,
-                    submission_text=trainer_form.answer.data,
-                    status='pending'
-                )
-                db.session.add(submission)
-            db.session.commit()
-            flash("✅ Submission sent for trainer review.", "success")
-            return redirect(url_for("main.task_detail", task_id=task.id))
+        elif task.grading_type == "trainer":
+            answer_text = request.form.get("answer", "").strip()
+            uploaded_file = request.files.get("file")
+            filename = None
 
-    return render_template(
-        "partials/task_content.html",
-        task=task,
-        form=form,
-        mcq_form=mcq_form,
-        trainer_form=trainer_form,
-        assignment=assignment,
-        result=result,
-        user_submission=existing_submission
-    )
+            if uploaded_file and uploaded_file.filename != "":
+                from werkzeug.utils import secure_filename
+                import os
+                UPLOAD_FOLDER = os.path.join("/mnt/data/uploads", str(current_user.id), str(task.id))
+                os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+                filename = secure_filename(uploaded_file.filename)
+                uploaded_file.save(os.path.join(UPLOAD_FOLDER, filename))
+
+            if answer_text or filename:
+                if existing_submission:
+                    existing_submission.submission_text = answer_text
+                    existing_submission.status = 'pending'
+                    if filename:
+                        existing_submission.uploaded_file = filename
+                else:
+                    submission = Submission(
+                        user_id=current_user.id,
+                        task_id=task.id,
+                        submission_text=answer_text,
+                        uploaded_file=filename,
+                        status='pending'
+                    )
+                    db.session.add(submission)
+                db.session.commit()
+                flash("✅ Submission sent for trainer review.", "success")
+
+    existing_submission = Submission.query.filter_by(user_id=current_user.id, task_id=task.id).first()
+
+    if request.headers.get("X-Requested-With") == "XMLHttpRequest" or request.args.get("partial") == "1":
+        return render_template("partials/task_content.html",
+            task=task,
+            form=form,
+            mcq_form=mcq_form,
+            trainer_form=trainer_form,
+            assignment=assignment,
+            result=result,
+            user_submission=existing_submission,
+            inside_course=True
+        )
+    else:
+        return render_template("task_wrapper.html",
+            task=task,
+            form=form,
+            mcq_form=mcq_form,
+            trainer_form=trainer_form,
+            assignment=assignment,
+            result=result,
+            user_submission=existing_submission
+        )
 
 # Submit a task
 @main.route("/submit/<int:task_id>", methods=["POST"])
@@ -296,8 +306,7 @@ def course_page(course_id):
         flash("You are not enrolled in this course.", "danger")
         return redirect(url_for("main.dashboard"))
 
-    #all_tasks = Task.query.filter_by(course_id=course_id).order_by(Task.label).all()
-    all_tasks = sorted(Task.query.filter_by(course_id=course_id).all(), key=lambda task: natural_key(task.label))
+    all_tasks = sorted(Task.query.filter_by(course_id=course_id).all(), key=lambda t: natural_key(t.label))
 
     completed_tasks = [
         t.task_id for t in TaskAssignment.query.filter_by(
@@ -305,39 +314,45 @@ def course_page(course_id):
         ).join(Task, TaskAssignment.task_id == Task.id)
         .filter(Task.course_id == course_id).all()
     ]
-    rejected_tasks = [
-    s.task_id for s in Submission.query.filter_by(user_id=current_user.id, status="rejected")
-    .join(Task, Submission.task_id == Task.id)
-    .filter(Task.course_id == course_id)
-    .all()
-    ]
+
     total_tasks = len([t for t in all_tasks if not t.is_section_header])
     completed_count = len(completed_tasks)
     progress = (completed_count / total_tasks * 100) if total_tasks > 0 else 0
 
     enrollment.progress = round(progress, 1)
-    if total_tasks > 0 and completed_count == total_tasks:
-        enrollment.completed = True
+    enrollment.completed = total_tasks > 0 and completed_count == total_tasks
     db.session.commit()
 
     task_hierarchy = build_task_hierarchy(all_tasks)
 
-    # 👇 Handle partial reloads (AJAX)
-    if request.args.get("partial") == "1":
-        return render_template(
-            "partials/task_sidebar.html",
-            task_hierarchy=task_hierarchy, 
-            completed_tasks=completed_tasks,
-            rejected_tasks=rejected_tasks
-            )
+    selected_task_id = request.args.get("task")
+    selected_task_html = None
+    if selected_task_id:
+        try:
+            selected_task_id = int(selected_task_id)
+            task = Task.query.get(selected_task_id)
+            if task and task.course_id == course.id:
+                from flask import render_template_string
+                selected_task_html = render_template(
+                    "partials/task_content.html",
+                    task=task,
+                    form=AnswerForm(),
+                    mcq_form=MCQForm(),
+                    trainer_form=TrainerAnswerForm(),
+                    assignment=TaskAssignment.query.filter_by(user_id=current_user.id, task_id=task.id).first(),
+                    result=None,
+                    user_submission=Submission.query.filter_by(user_id=current_user.id, task_id=task.id).first()
+                )
+        except ValueError:
+            pass  # Invalid task_id format
 
     return render_template(
         "course.html",
         course=course,
         task_hierarchy=task_hierarchy,
         completed_tasks=completed_tasks,
-        rejected_tasks=rejected_tasks,
-        progress=enrollment.progress
+        progress=enrollment.progress,
+        selected_task_html=selected_task_html  # 👈 Send it to the template
     )
 
 @main.route("/trainer")
@@ -621,8 +636,6 @@ def review_submissions():
         flash("Access denied.", "danger")
         return redirect(url_for("main.dashboard"))
 
-
-
     pending = Submission.query.filter_by(status='pending').order_by(Submission.timestamp.desc()).all()
     approved = Submission.query.filter_by(status='approved').order_by(Submission.timestamp.desc()).all()
     rejected = Submission.query.filter_by(status='rejected').order_by(Submission.timestamp.desc()).all()
@@ -636,7 +649,7 @@ def review_submissions():
 
 from flask import send_from_directory
 
-UPLOAD_FOLDER = os.path.join(os.getcwd(), "uploads")  # for local dev
+UPLOAD_FOLDER = "/mnt/data/uploads"  # for local dev
 @main.route('/uploads/<int:user_id>/<int:task_id>/<filename>')
 @login_required
 def download_submission(user_id, task_id, filename):

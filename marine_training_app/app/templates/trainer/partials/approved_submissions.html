@@ -23,13 +23,12 @@
           {% endif %}
         </td>
         <td>
-            <form method="POST" action="{{ url_for('main.review_submission', submission_id=sub.id) }}">
-                <textarea name="feedback" class="form-control mb-2" placeholder="Feedback">{{ sub.feedback or '' }}</textarea>
-                <div class="d-flex gap-2">
-                <button name="approved" value="false" class="btn btn-danger btn-sm">❌ Reject Anwser</button>
-                <button type="submit" name="action" value="update" class="btn btn-secondary btn-sm">💬 Update Feedback</button>
-            </div>
-            </form>
+          <form method="POST" action="{{ url_for('main.review_submission', submission_id=sub.id) }}">
+            <textarea name="feedback" class="form-control mb-2" placeholder="Feedback">{{ sub.feedback }}</textarea>
+              <button name="action" value="reject" class="btn btn-danger btn-sm">❌ Reject</button>
+              <button name="action" value="update" class="btn btn-warning btn-sm">💬 Save Feedback</button>
+          </form>
+          
             <form method="POST" action="{{ url_for('admin.trainer_delete_submission', submission_id=sub.id) }}" onsubmit="return confirm('Are you sure you want to delete this submission?');">
                 <button class="btn btn-sm btn-outline-danger mt-1">🗑️ Delete</button>
               </form>
