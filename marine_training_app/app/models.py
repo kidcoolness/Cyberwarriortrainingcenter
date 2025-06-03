@@ -22,9 +22,13 @@ class User(db.Model, UserMixin):
     is_trainer = db.Column(db.Boolean, default=False)
     is_training_manager = db.Column(db.Boolean, default=False)
     is_admin = db.Column(db.Boolean, default=False)
-    platoon = db.Column(db.String(100), nullable=True)
-    mission_element = db.Column(db.String(100), nullable=True)
-    team = db.Column(db.String(100), nullable=True)
+    platoon_id = db.Column(db.Integer, db.ForeignKey('platoon.id'), nullable=True)
+    mission_element_id = db.Column(db.Integer, db.ForeignKey('mission_element.id'), nullable=True)
+    team_id = db.Column(db.Integer, db.ForeignKey('team.id'), nullable=True)
+    platoon = db.relationship('Platoon', backref='users', lazy=True)
+    mission_element = db.relationship('MissionElement', backref='users', lazy=True)
+    team = db.relationship('Team', backref='users', lazy=True)
+
     
     def get_roles(self):
         roles = ["Student"]
@@ -112,7 +116,6 @@ class Course(db.Model):
     enrollments = db.relationship("CourseEnrollment", backref="course", cascade="all, delete")  # KEEP
     tasks = db.relationship("Task", backref="course", cascade="all, delete")  # ✅ NEW
 
-
 class CourseEnrollment(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=False)
@@ -179,3 +182,23 @@ class StreakLog(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
     date_logged = db.Column(db.Date, default=datetime.utcnow().date)
+
+class Platoon(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(100), unique=True, nullable=False)
+    mission_elements = db.relationship('MissionElement', backref='platoon', lazy=True)
+    users = db.relationship("User", backref="platoon_obj", lazy=True)
+
+class MissionElement(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(100), nullable=False)
+    platoon_id = db.Column(db.Integer, db.ForeignKey('platoon.id'), nullable=False)
+    teams = db.relationship('Team', backref='mission_element', lazy=True)
+    users = db.relationship("User", backref="mission_element_obj", lazy=True)
+
+
+class Team(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(100), nullable=False)
+    mission_element_id = db.Column(db.Integer, db.ForeignKey('mission_element.id'), nullable=False)
+    users = db.relationship("User", backref="team_obj", lazy=True)

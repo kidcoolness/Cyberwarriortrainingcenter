@@ -1,7 +1,7 @@
 import sys
 import os
 #from marine_training_app.app.utils import natural_key
-from marine_training_app.app import create_app
+from .marine_training_app.app import create_app
 
 sys.path.append(os.path.abspath(os.path.dirname(__file__)))
 
