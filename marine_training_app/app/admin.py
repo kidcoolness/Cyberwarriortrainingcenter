@@ -26,19 +26,38 @@ def dashboard():
 @login_required
 def manage_users():
     if not (current_user.is_admin or current_user.is_training_manager):
-        abort(403)
+        flash("Access denied.", "danger")
+        return redirect(url_for("main.dashboard"))
 
-    # Show only users in the same Platoon/MissionElement/Team if not admin
+    # If Admin → see all users
     if current_user.is_admin:
-        users = User.query.all()
+        users_query = User.query.filter(User.is_student == True)
+
+        # 🚨 Apply scoping if Training Manager (non-admin)
+        if current_user.is_training_manager and not current_user.is_admin:
+            if current_user.platoon_id:
+                users_query = users_query.filter(User.platoon_id == current_user.platoon_id)
+            if current_user.mission_element_id:
+                users_query = users_query.filter(User.mission_element_id == current_user.mission_element_id)
+            if current_user.team_id:
+                users_query = users_query.filter(User.team_id == current_user.team_id)
+
+        users = users_query.all()
     else:
-        users = User.query.filter(
-            (User.platoon_id == current_user.platoon_id) |
-            (User.mission_element_id == current_user.mission_element_id) |
-            (User.team_id == current_user.team_id)
-        ).all()
+        # Training Manager → filter by their assigned Platoon / ME / Team
+        query = User.query
+
+        if current_user.platoon_id:
+            query = query.filter(User.platoon_id == current_user.platoon_id)
+        if current_user.mission_element_id:
+            query = query.filter(User.mission_element_id == current_user.mission_element_id)
+        if current_user.team_id:
+            query = query.filter(User.team_id == current_user.team_id)
+
+        users = query.all()
 
     return render_template("admin/manage_users.html", users=users)
+
 
 # ✅ Update User Role
 @admin.route("admin/update_role/<int:user_id>", methods=["POST"])
@@ -468,38 +487,41 @@ def trainer_user_tasks():
     
     return render_template("admin/trainer_user_selector.html", users=users)
 
-@admin.route("/admin/trainer/user_tasks/<int:user_id>")
+@admin.route("/trainer/user_tasks/<int:user_id>")
 @login_required
 def trainer_user_task_view(user_id):
-    if not (current_user.is_admin or current_user.is_training_manager):
+    if not (current_user.is_admin or current_user.is_training_manager or current_user.is_trainer):
         abort(403)
 
-    target_user = User.query.get_or_404(user_id)
+    user = User.query.get_or_404(user_id)
 
-    # ✅ Restrict access for Training Managers
-    if current_user.is_training_manager and not (
-        (target_user.platoon_id == current_user.platoon_id) or
-        (target_user.mission_element_id == current_user.mission_element_id) or
-        (target_user.team_id == current_user.team_id)
-    ):
-        flash("Access denied: You may only view users within your assigned structure.", "danger")
-        return redirect(url_for("admin.manage_users"))
+    # 🚨 NEW — Apply scoping if Training Manager
+    if current_user.is_training_manager and not current_user.is_admin:
+        if current_user.platoon_id and user.platoon_id != current_user.platoon_id:
+            abort(403)
+        if current_user.mission_element_id and user.mission_element_id != current_user.mission_element_id:
+            abort(403)
+        if current_user.team_id and user.team_id != current_user.team_id:
+            abort(403)
 
-    # Fetch task data as before
-    enrollments = CourseEnrollment.query.filter_by(user_id=target_user.id).all()
-    task_data = []
+    # Existing logic → no changes needed below this
+    enrollments = CourseEnrollment.query.filter_by(user_id=user.id).all()
+    tasks = Task.query.all()
+    completed_assignments = TaskAssignment.query.filter_by(user_id=user.id, status="completed").all()
+    completed_task_ids = [a.task_id for a in completed_assignments]
 
-    for enrollment in enrollments:
-        tasks = Task.query.filter_by(course_id=enrollment.course_id).all()
-        for task in tasks:
-            assignment = TaskAssignment.query.filter_by(user_id=target_user.id, task_id=task.id).first()
-            task_data.append({
-                "course": enrollment.course.name,
-                "task": task,
-                "status": assignment.status if assignment else "incomplete"
-            })
+    submissions = Submission.query.filter_by(user_id=user.id).all()
 
-    return render_template("admin/user_task_overview.html", user=target_user, task_data=task_data)
+    # Build grouped_tasks for template (existing logic unchanged)
+    grouped_tasks = build_grouped_tasks(tasks, enrollments)
+
+    return render_template(
+        "admin/user_task_overview.html",
+        user=user,
+        grouped_tasks=grouped_tasks,
+        completed_task_ids=completed_task_ids,
+        submissions=submissions
+    )
 
 @admin.route("/admin/trainer/mark_task_toggle/<int:user_id>/<int:task_id>", methods=["POST"])
 @login_required
@@ -609,6 +631,9 @@ def edit_user_assignments(user_id):
             user.platoon_id = current_user.platoon_id
             user.mission_element_id = current_user.mission_element_id
             user.team_id = current_user.team_id
+            user.is_trainer = bool(request.form.get("is_trainer"))
+            user.is_training_manager = bool(request.form.get("is_training_manager"))
+            user.is_admin = bool(request.form.get("is_admin"))
 
         db.session.commit()
         flash("✅ User assignment updated.", "success")
