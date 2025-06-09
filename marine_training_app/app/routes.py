@@ -16,6 +16,7 @@ from werkzeug.utils import secure_filename
 import os
 from flask import current_app
 from datetime import datetime
+from flask import send_from_directory
 # Define a Blueprint
 
 main = Blueprint("main", __name__)
@@ -633,21 +634,35 @@ def export_performance():
 @login_required
 def review_submissions():
     if not (current_user.is_trainer or current_user.is_admin or current_user.is_training_manager):
-        flash("Access denied.", "danger")
-        return redirect(url_for("main.dashboard"))
+        abort(403)
 
-    pending = Submission.query.filter_by(status='pending').order_by(Submission.timestamp.desc()).all()
-    approved = Submission.query.filter_by(status='approved').order_by(Submission.timestamp.desc()).all()
-    rejected = Submission.query.filter_by(status='rejected').order_by(Submission.timestamp.desc()).all()
+    # Admins and Trainers see all submissions
+    if current_user.is_admin or current_user.is_trainer:
+        submissions = Submission.query.order_by(Submission.timestamp.desc()).all()
+    elif current_user.is_training_manager:
+        # Training Managers only see users from their structure
+        filters = []
 
-    return render_template(
-        "trainer/review_submissions.html",
-        pending=pending,
-        approved=approved,
-        rejected=rejected
-    )
+        if current_user.platoon_id:
+            filters.append(User.platoon_id == current_user.platoon_id)
+        if current_user.mission_element_id:
+            filters.append(User.mission_element_id == current_user.mission_element_id)
+        if current_user.team_id:
+            filters.append(User.team_id == current_user.team_id)
 
-from flask import send_from_directory
+        submissions = (
+            Submission.query
+            .join(User)
+            .filter(db.or_(*filters))
+            .order_by(Submission.timestamp.desc())
+            .all()
+        )
+    else:
+        submissions = []
+
+    return render_template("trainer/review_submissions.html", submissions=submissions)
+
+
 
 UPLOAD_FOLDER = "/mnt/data/uploads"  # for local dev
 @main.route('/uploads/<int:user_id>/<int:task_id>/<filename>')

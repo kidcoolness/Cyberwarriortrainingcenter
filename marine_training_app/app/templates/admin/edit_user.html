@@ -1,0 +1,52 @@
+{% extends 'base.html' %}
+{% block content %}
+<h2>Edit Assignments for {{ user.name }}</h2>
+
+<form method="POST">
+  <div class="mb-3">
+    <label for="platoon">Platoon</label>
+    <select name="platoon_id" id="platoon_id" class="form-select">
+      <option value="">-- None --</option>
+      {% for p in platoons %}
+        <option value="{{ p.id }}" {% if user.platoon_id == p.id %}selected{% endif %}>{{ p.name }}</option>
+      {% endfor %}
+    </select>
+  </div>
+
+  <div class="mb-3">
+    <label for="mission_element">Mission Element</label>
+    <select name="mission_element_id" class="form-select">
+      <option value="">-- None --</option>
+      {% for m in mission_elements %}
+        <option value="{{ m.id }}" {% if user.mission_element_id == m.id %}selected{% endif %}>{{ m.name }}</option>
+      {% endfor %}
+    </select>
+  </div>
+
+  <div class="mb-3">
+    <label for="team">Team</label>
+    <select name="team_id" class="form-select">
+      <option value="">-- None --</option>
+      {% for t in teams %}
+        <option value="{{ t.id }}" {% if user.team_id == t.id %}selected{% endif %}>{{ t.name }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <h3>Roles</h3>
+  <div class="form-check">
+      <input class="form-check-input" type="checkbox" name="is_admin" {% if user.is_admin %}checked{% endif %}>
+      <label class="form-check-label">Admin</label>
+  </div>
+  <div class="form-check">
+      <input class="form-check-input" type="checkbox" name="is_trainer" {% if user.is_trainer %}checked{% endif %}>
+      <label class="form-check-label">Trainer</label>
+  </div>
+  <div class="form-check">
+      <input class="form-check-input" type="checkbox" name="is_training_manager" {% if user.is_training_manager %}checked{% endif %}>
+      <label class="form-check-label">Training Manager</label>
+  </div>
+
+  <button type="submit" class="btn btn-success">Save Changes</button>
+  <a href="{{ url_for('admin.manage_users') }}" class="btn btn-secondary">Cancel</a>
+</form>
+{% endblock %}
