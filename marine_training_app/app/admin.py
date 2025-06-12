@@ -58,7 +58,6 @@ def manage_users():
 
     return render_template("admin/manage_users.html", users=users)
 
-
 # ✅ Update User Role
 @admin.route("admin/update_role/<int:user_id>", methods=["POST"])
 @login_required
@@ -606,40 +605,36 @@ def delete_user(user_id):
 @admin.route("/admin/edit_user/<int:user_id>", methods=["GET", "POST"])
 @login_required
 def edit_user_assignments(user_id):
-    if not (current_user.is_admin or current_user.is_training_manager):
+    if not current_user.is_admin:
         abort(403)
 
     user = User.query.get_or_404(user_id)
-
-    # Admins can access all; Training Managers are scoped
-    if current_user.is_admin:
-        platoons = Platoon.query.all()
-        mission_elements = MissionElement.query.all()
-        teams = Team.query.all()
-    else:
-        platoons = Platoon.query.filter_by(id=current_user.platoon_id).all()
-        mission_elements = MissionElement.query.filter_by(id=current_user.mission_element_id).all()
-        teams = Team.query.filter_by(id=current_user.team_id).all()
+    platoons = Platoon.query.all()
+    mission_elements = MissionElement.query.all()
+    teams = Team.query.all()
 
     if request.method == "POST":
-        # Prevent assigning outside your scope unless you're an admin
-        if current_user.is_admin:
-            user.platoon_id = request.form.get("platoon_id") or None
-            user.mission_element_id = request.form.get("mission_element_id") or None
-            user.team_id = request.form.get("team_id") or None
-        else:
-            user.platoon_id = current_user.platoon_id
-            user.mission_element_id = current_user.mission_element_id
-            user.team_id = current_user.team_id
-            user.is_trainer = bool(request.form.get("is_trainer"))
-            user.is_training_manager = bool(request.form.get("is_training_manager"))
-            user.is_admin = bool(request.form.get("is_admin"))
+        # Update hierarchy
+        user.platoon_id = request.form.get("platoon_id") or None
+        user.mission_element_id = request.form.get("mission_element_id") or None
+        user.team_id = request.form.get("team_id") or None
+
+        # ✅ Update roles!
+        user.is_trainer = "is_trainer" in request.form
+        user.is_admin = "is_admin" in request.form
+        user.is_training_manager = "is_training_manager" in request.form
 
         db.session.commit()
-        flash("✅ User assignment updated.", "success")
+        flash("✅ User assignment and roles updated.", "success")
         return redirect(url_for("admin.manage_users"))
 
-    return render_template("admin/edit_user.html", user=user, platoons=platoons, mission_elements=mission_elements, teams=teams)
+    return render_template(
+        "admin/edit_user.html",
+        user=user,
+        platoons=platoons,
+        mission_elements=mission_elements,
+        teams=teams
+    )
 
 # ----------------------------
 # MANAGE PLATOONS
@@ -742,3 +737,74 @@ def delete_team(team_id):
     db.session.commit()
     flash("✅ Team deleted!", "success")
     return redirect(url_for("admin.manage_teams"))
+
+@admin.route("/admin/manage_units", methods=["GET", "POST"])
+@login_required
+def manage_units():
+    if not current_user.is_admin:
+        abort(403)
+
+    platoons = Platoon.query.order_by(Platoon.name).all()
+    mission_elements = MissionElement.query.order_by(MissionElement.name).all()
+    teams = Team.query.order_by(Team.name).all()
+
+    if request.method == "POST":
+        entity_type = request.form.get("entity_type")
+        name = request.form.get("name").strip()
+
+        if entity_type == "platoon":
+            db.session.add(Platoon(name=name))
+            db.session.commit()
+            flash("✅ Platoon created.", "success")
+
+        elif entity_type == "mission_element":
+            platoon_id = request.form.get("platoon_id")
+            if not platoon_id:
+                flash("❌ Please select a Platoon for the Mission Element.", "danger")
+                return redirect(url_for("admin.manage_units"))
+
+            db.session.add(MissionElement(name=name, platoon_id=int(platoon_id)))
+            db.session.commit()
+            flash("✅ Mission Element created.", "success")
+
+        elif entity_type == "team":
+            mission_element_id = request.form.get("mission_element_id")
+            if not mission_element_id:
+                flash("❌ Please select a Mission Element for the Team.", "danger")
+                return redirect(url_for("admin.manage_units"))
+
+            db.session.add(Team(name=name, mission_element_id=int(mission_element_id)))
+            db.session.commit()
+            flash("✅ Team created.", "success")
+
+        return redirect(url_for("admin.manage_units"))
+
+    return render_template(
+        "admin/manage_units.html",
+        platoons=platoons,
+        mission_elements=mission_elements,
+        teams=teams
+    )
+
+@admin.route("/admin/delete_unit/<entity_type>/<int:entity_id>", methods=["POST"])
+@login_required
+def delete_unit(entity_type, entity_id):
+    if not current_user.is_admin:
+        abort(403)
+
+    if entity_type == "platoon":
+        unit = Platoon.query.get_or_404(entity_id)
+    elif entity_type == "mission_element":
+        unit = MissionElement.query.get_or_404(entity_id)
+    elif entity_type == "team":
+        unit = Team.query.get_or_404(entity_id)
+    else:
+        flash("❌ Invalid entity type.", "danger")
+        return redirect(url_for("admin.manage_units"))
+
+    db.session.delete(unit)
+    db.session.commit()
+    flash(f"✅ {entity_type.replace('_', ' ').title()} deleted.", "success")
+    return redirect(url_for("admin.manage_units"))
+
+

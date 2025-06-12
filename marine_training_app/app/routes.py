@@ -595,66 +595,55 @@ def review_submission(submission_id):
     flash("✅ Submission review updated.", "success")
     return redirect(url_for("main.review_submissions"))
 
-@main.route("/export/performance")
-@login_required
-def export_performance():
-    if not (current_user.is_admin or current_user.is_training_manager):
-        flash("Access denied.", "danger")
-        return redirect(url_for("main.dashboard"))
-
-    # Base query
-    users_query = User.query.filter(User.is_student == True)
-
-    # 🚨 Apply scoping if Training Manager
-    if current_user.is_training_manager and not current_user.is_admin:
-        if current_user.platoon_id:
-            users_query = users_query.filter(User.platoon_id == current_user.platoon_id)
-        if current_user.mission_element_id:
-            users_query = users_query.filter(User.mission_element_id == current_user.mission_element_id)
-        if current_user.team_id:
-            users_query = users_query.filter(User.team_id == current_user.team_id)
-
-    users = users_query.all()
-
-    enrollments = CourseEnrollment.query.filter(CourseEnrollment.user_id.in_([u.id for u in users])).all()
-
-    return render_template(
-        "admin/export_report.html",
-        users=users,
-        enrollments=enrollments
-    )
-
 @main.route("/review_submissions")
 @login_required
 def review_submissions():
     if not (current_user.is_trainer or current_user.is_admin or current_user.is_training_manager):
-        abort(403)
+        flash("Access denied.", "danger")
+        return redirect(url_for("main.dashboard"))
 
-    # Admins and Trainers see all submissions
-    if current_user.is_admin or current_user.is_trainer:
-        submissions = Submission.query.order_by(Submission.timestamp.desc()).all()
-    elif current_user.is_training_manager:
-        # Training Managers only see users from their structure
-        filters = []
+    # Default: no platoon restriction for admin
+    if current_user.is_admin:
+        pending_submissions = Submission.query.filter_by(status='pending').order_by(Submission.timestamp.desc()).all()
+        approved_submissions = Submission.query.filter_by(status='approved').order_by(Submission.timestamp.desc()).all()
+        rejected_submissions = Submission.query.filter_by(status='rejected').order_by(Submission.timestamp.desc()).all()
 
-        if current_user.platoon_id:
-            filters.append(User.platoon_id == current_user.platoon_id)
-        if current_user.mission_element_id:
-            filters.append(User.mission_element_id == current_user.mission_element_id)
-        if current_user.team_id:
-            filters.append(User.team_id == current_user.team_id)
+    else:
+        # Trainers & Training Managers - filter by platoon
+        platoon_id = current_user.platoon_id
+        if platoon_id is None:
+            flash("⚠️ You must be assigned to a Platoon to review submissions.", "danger")
+            return redirect(url_for("main.dashboard"))
 
-        submissions = (
+        pending_submissions = (
             Submission.query
-            .join(User)
-            .filter(db.or_(*filters))
+            .join(User, Submission.user_id == User.id)
+            .filter(User.platoon_id == platoon_id, Submission.status == 'pending')
             .order_by(Submission.timestamp.desc())
             .all()
         )
-    else:
-        submissions = []
+        approved_submissions = (
+            Submission.query
+            .join(User, Submission.user_id == User.id)
+            .filter(User.platoon_id == platoon_id, Submission.status == 'approved')
+            .order_by(Submission.timestamp.desc())
+            .all()
+        )
+        rejected_submissions = (
+            Submission.query
+            .join(User, Submission.user_id == User.id)
+            .filter(User.platoon_id == platoon_id, Submission.status == 'rejected')
+            .order_by(Submission.timestamp.desc())
+            .all()
+        )
 
-    return render_template("trainer/review_submissions.html", submissions=submissions)
+    return render_template(
+        "trainer/review_submissions.html",
+        pending_submissions=pending_submissions,
+        approved_submissions=approved_submissions,
+        rejected_submissions=rejected_submissions
+    )
+
 
 UPLOAD_FOLDER = "/mnt/data/uploads"  # for local dev
 @main.route('/uploads/<int:user_id>/<int:task_id>/<filename>')
@@ -711,3 +700,9 @@ def delete_uploaded_file(task_id):
         flash("⚠️ No uploaded file found.", "warning")
 
     return redirect(url_for("main.task_detail", task_id=task_id))
+
+@main.route("/export_performance")
+@login_required
+def export_performance():
+    flash("🚧 Export Performance feature not implemented yet.", "warning")
+    return redirect(url_for("main.dashboard"))
