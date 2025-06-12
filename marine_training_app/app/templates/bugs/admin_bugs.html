@@ -1,0 +1,61 @@
+{% extends "base.html" %}
+{% block title %}Bug Tracker{% endblock %}
+{% block content %}
+<h2>🛠️ Bug Reports</h2>
+
+{% if bugs %}
+<table class="table table-striped">
+  <thead>
+    <tr>
+      <th>Bug ID</th>
+      <th>Reported By</th>
+      <th>Title</th>
+      <th>Description</th>
+      <th>Status</th>
+      <th>Actions</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for bug in bugs %}
+    <tr>
+      <td>#{{ "%04d"|format(bug.id) }}</td>  <!-- 🔥 NEW -->
+      <td>{{ bug.user.name if bug.user else "Anonymous" }}</td>
+      <td>{{ bug.title }}</td>
+      <td>{{ bug.description }}</td>
+      <td>
+        {% if bug.status == 'open' %}
+          ⏳ Open
+        {% else %}
+          ✅ Resolved
+        {% endif %}
+      </td>
+      <td>
+        {% if bug.status == 'open' %}
+        <form method="POST" action="{{ url_for('bugs.resolve_bug', bug_id=bug.id) }}" style="display:inline;">
+          <button type="submit" class="btn btn-success btn-sm">Mark Resolved</button>
+        </form>
+        <form method="POST" action="{{ url_for('bugs.mark_unresolved', bug_id=bug.id) }}" style="display:inline;">
+          <button type="submit" class="btn btn-warning btn-sm">Mark Unresolved</button>
+        </form>
+        {% elif bug.status == 'unresolved' %}
+        <form method="POST" action="{{ url_for('bugs.resolve_bug', bug_id=bug.id) }}" style="display:inline;">
+          <button type="submit" class="btn btn-success btn-sm">Mark Resolved</button>
+        </form>
+        {% endif %}
+        
+        <!-- Always allow delete -->
+        <form method="POST" action="{{ url_for('bugs.delete_bug', bug_id=bug.id) }}" style="display:inline;">
+          <button type="submit" class="btn btn-danger btn-sm">🗑️ Delete</button>
+        </form>        
+      </td>
+    </tr>
+    {% endfor %}
+  </tbody>
+  
+</table>
+{% else %}
+  <p>No bugs reported yet.</p>
+{% endif %}
+
+<a href="{{ url_for('admin.dashboard') }}" class="btn btn-secondary mt-3">⬅️ Back to Admin Dashboard</a>
+{% endblock %}

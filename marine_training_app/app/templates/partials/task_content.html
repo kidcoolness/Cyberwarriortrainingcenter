@@ -1,8 +1,19 @@
+{% with messages = get_flashed_messages(with_categories=true) %}
+  {% if messages %}
+    {% for category, message in messages %}
+      <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
+        {{ message }}
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+      </div>
+    {% endfor %}
+  {% endif %}
+{% endwith %}
+
 <div class="card">
   <div class="card-body">
     <h5>{{ task.label }} – {{ task.title }}</h5>
-    <p>{{ task.description }}</p>
-    
+    <p>{{ task.description.replace('\n', '<br>') | safe }}</p>
+
     {% if result == "correct" %}
       <div class="alert alert-success">✅ Correct!</div>
     {% elif result == "incorrect" %}
@@ -10,7 +21,7 @@
     {% endif %}
 
     {% if task.grading_type == "auto" %}
-      <form id="answer-form" method="POST">
+      <form method="POST" action="{{ url_for('main.task_detail', task_id=task.id) }}" id="answer-form">
         {{ form.hidden_tag() }}
         <div class="mb-3">
           {{ form.answer.label(class="form-label") }}
@@ -20,7 +31,7 @@
       </form>
 
     {% elif task.grading_type == "mcq" %}
-      <form method="POST" id="answer-form">
+      <form method="POST" action="{{ url_for('main.task_detail', task_id=task.id) }}" id="answer-form">
         {{ mcq_form.hidden_tag() }}
         <div class="mb-3">
           {{ mcq_form.answer.label }}<br>
@@ -31,20 +42,54 @@
             </div>
           {% endfor %}
         </div>
-
-    {% elif task.grading_type == 'trainer' %}
-    <form method="POST" id="answer-form">
-      {{ trainer_form.hidden_tag() }}
-      <div class="mb-3">
-        <label for="submission_text" class="form-label">Enter your answer for trainer review:</label>
-        {{ trainer_form.answer(class="form-control", rows=5) }}
-      </div>
-      
-        <button type="submit" class="btn btn-primary">Submit Answer</button>
+        <button type="submit" class="btn btn-primary">Submit</button>
       </form>
 
-    {% else %}
-      <p>This task requires trainer evaluation or file upload.</p>
+    {% elif task.grading_type == "trainer" %}
+      <form method="POST" action="{{ url_for('main.task_detail', task_id=task.id) }}" enctype="multipart/form-data" id="answer-form">
+        {{ trainer_form.hidden_tag() }}
+
+        <div class="mb-3">
+          <label for="submission_text" class="form-label">Enter your answer for trainer review:</label>
+          {{ trainer_form.answer(class="form-control", rows=5) }}
+        </div>
+
+        <div class="mb-3">
+          <label class="form-label">Upload supporting file (optional):</label>
+          <input type="file" name="file" accept=".png,.jpg,.jpeg,.pdf,.log,.txt">
+        </div>
+
+        <button type="submit" class="btn btn-primary">Submit Answer & Upload</button>
+      </form>
+
+      {% if user_submission and user_submission.feedback %}
+        <div class="alert alert-info mt-3">
+          <strong>Trainer Feedback:</strong><br>
+          {{ user_submission.feedback }}
+        </div>
+      {% endif %}
+
+      {% if user_submission and user_submission.uploaded_file %}
+        <div class="mt-4">
+          <p><strong>Uploaded File:</strong>
+            <a href="{{ url_for('main.download_submission', user_id=current_user.id, task_id=task.id, filename=user_submission.uploaded_file) }}" target="_blank">
+              {{ user_submission.uploaded_file }}
+            </a>
+          </p>
+        </div>
+      {% endif %}
     {% endif %}
   </div>
+</div>
+
+{% if user_submission %}
+  <form method="POST" action="{{ url_for('main.delete_submission', task_id=task.id) }}">
+    <button type="submit" class="btn btn-danger btn-sm mt-2">❌ Delete Submission and Upload</button>
+  </form>
+{% endif %}
+
+<div class="mt-4">
+  <a href="{{ url_for('main.course_page', course_id=task.course_id) }}" class="btn btn-secondary">
+    ⬅️ Back to My Courses
+  </a>
 </div>

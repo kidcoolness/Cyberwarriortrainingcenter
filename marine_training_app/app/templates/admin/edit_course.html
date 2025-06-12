@@ -117,18 +117,121 @@
 
 <hr>
 
-<!-- View Hierarchy -->
 <h3>Course Hierarchy</h3>
 <div class="border p-3" style="max-height: 600px; overflow-y: auto;">
   {% for task in tasks %}
     {% if task.label.endswith('.0') %}
-      <strong>📘 {{ task.label }} {{ task.title }}</strong><br>
+      <!-- MODULE -->
+      <div class="d-flex justify-content-between align-items-center">
+        <strong>📘 {{ task.label }} {{ task.title }}</strong>
+        <div>
+          <button class="btn btn-sm btn-outline-primary" 
+                  data-bs-toggle="modal"
+                  data-bs-target="#renameModuleModal"
+                  data-task-id="{{ task.id }}"
+                  data-current-title="{{ task.title }}">
+            📝 Rename
+          </button>
+          <form method="POST" action="{{ url_for('admin.delete_module', course_id=course.id, module_label=task.label) }}" class="d-inline" onsubmit="return confirm('Delete this module and all its contents?');">
+            <button class="btn btn-sm btn-outline-danger">🗑️</button>
+          </form>
+        </div>
+      </div>
+
     {% elif task.is_section_header %}
-      <span class="ms-3">📖 {{ task.label }} {{ task.title }}</span><br>
+      <!-- SECTION -->
+      <div class="d-flex justify-content-between align-items-center ms-3">
+        <span>📖 {{ task.label }} {{ task.title }}</span>
+        <div>
+          <button class="btn btn-sm btn-outline-primary" 
+                  data-bs-toggle="modal"
+                  data-bs-target="#renameSectionModal"
+                  data-task-id="{{ task.id }}"
+                  data-current-title="{{ task.title }}">
+            📝 Rename
+          </button>
+          <form method="POST" action="{{ url_for('admin.delete_section', course_id=course.id, section_label=task.label) }}" class="d-inline" onsubmit="return confirm('Delete this section and all its tasks?');">
+            <button class="btn btn-sm btn-outline-danger">🗑️</button>
+          </form>
+        </div>
+      </div>
+
     {% else %}
-      <span class="ms-5">🔗 <a href="{{ url_for('admin.edit_task', task_id=task.id) }}">{{ task.label }} - {{ task.title }}</a></span><br>
+      <!-- TASK -->
+      <div class="d-flex justify-content-between align-items-center ms-5">
+        <span>🔗 <a href="{{ url_for('admin.edit_task', task_id=task.id) }}">{{ task.label }} - {{ task.title }}</a></span>
+        <form method="POST" action="{{ url_for('admin.delete_task', course_id=course.id, task_label=task.label, task_id=task.id) }}" class="d-inline" onsubmit="return confirm('Delete this task?');">
+          <button class="btn btn-sm btn-outline-danger">🗑️</button>
+        </form>
+      </div>
     {% endif %}
   {% endfor %}
 </div>
 
+
+
+
+<!-- Module Rename Modal -->
+<div class="modal fade" id="renameModuleModal" tabindex="-1" role="dialog" aria-labelledby="renameModuleLabel" aria-hidden="true">
+  <div class="modal-dialog" role="document">
+    <form method="POST" action="{{ url_for('admin.rename_label') }}">
+      <input type="hidden" name="label_id" id="renameModuleId">
+      <input type="hidden" name="label_type" value="module">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title" id="renameModuleLabel">Rename Module</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <input type="text" class="form-control" name="new_name" placeholder="New Module Name" required>
+        </div>
+        <div class="modal-footer">
+          <button type="submit" class="btn btn-primary">Save</button>
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+        </div>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Section Rename Modal -->
+<div class="modal fade" id="renameSectionModal" tabindex="-1" role="dialog" aria-labelledby="renameSectionLabel" aria-hidden="true">
+  <div class="modal-dialog" role="document">
+    <form method="POST" action="{{ url_for('admin.rename_label') }}">
+      <input type="hidden" name="label_id" id="renameSectionId">
+      <input type="hidden" name="label_type" value="section">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title" id="renameSectionLabel">Rename Section</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <input type="text" class="form-control" name="new_name" placeholder="New Section Name" required>
+        </div>
+        <div class="modal-footer">
+          <button type="submit" class="btn btn-primary">Save</button>
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+        </div>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script>
+  const renameModuleModal = document.getElementById('renameModuleModal');
+  renameModuleModal.addEventListener('show.bs.modal', event => {
+    const button = event.relatedTarget;
+    document.getElementById('renameModuleId').value = button.getAttribute('data-task-id');
+    renameModuleModal.querySelector('input[name="new_name"]').value = button.getAttribute('data-current-title');
+  });
+
+  const renameSectionModal = document.getElementById('renameSectionModal');
+  renameSectionModal.addEventListener('show.bs.modal', event => {
+    const button = event.relatedTarget;
+    document.getElementById('renameSectionId').value = button.getAttribute('data-task-id');
+    renameSectionModal.querySelector('input[name="new_name"]').value = button.getAttribute('data-current-title');
+  });
+</script>
+
+  
 {% endblock %}

@@ -4,7 +4,6 @@
 {% block content %}
 <h1>{{ course.name }}</h1>
 <p>{{ course.description }}</p>
-<h1 style="color:red">🔥 THIS IS course.html 🔥</h1>
 
 <div class="row mt-4">
   <!-- LEFT SIDEBAR: Task Navigation -->
@@ -26,10 +25,14 @@
                     {% for task in section.tasks %}
                     <div id="task-{{ task.id }}" class="ms-5">
                       <a href="#" class="task-link" data-task-url="/task/{{ task.id }}">{{ task.label }} – {{ task.title }}</a>
-                      {{ task.label }} – {{ task.title }}
+                      {{ task.label }}
                       </a>
                       {% if task.id in completed_tasks %}
-                      <span class="text-success">✅</span>
+                        <span class="text-success">✅</span>
+                      {% elif task.id in rejected_tasks %}
+                      <span class="text-danger">❌</span>
+                      {% elif task.submission and task.submission.uploaded_file %}
+                        <span class="text-info">📎</span>  {# Icon showing an upload exists even if task not completed yet #}
                       {% endif %}
                       </div>
                     {% endfor %}
@@ -55,91 +58,86 @@
 
   <!-- RIGHT: Task Display Pane -->
   <div class="col-md-8" id="task-content">
-    <p class="text-muted">👉 Select a task from the left to begin.</p>
+    {% if selected_task %}
+      {% include "partials/task_content.html" %}
+    {% else %}
+      <p class="text-muted">👉 Select a task from the left to begin.</p>
+    {% endif %}
   </div>
-</div>
+  
 {% endblock %}
 
 
 {% block scripts %}
 <script>
   document.addEventListener('DOMContentLoaded', function () {
-    const taskLinks = document.querySelectorAll('.task-link');
     const contentPane = document.getElementById('task-content');
+    const courseId = window.location.pathname.split("/")[2];
 
-    // Load and inject task HTML
-    function loadTask(url) {
-      fetch(url)
-        .then(res => res.text())
-        .then(html => {
-          contentPane.innerHTML = html;
-          window.history.pushState({}, '', url); // optional: update browser URL
-          bindForms(url); // 🔁 bind form submit to stay inside pane
-        });
-    }
-
-    // Re-bind form inside task content
-    function bindForms() {
-      const form = document.getElementById('answer-form');
-      if (form) {
-        form.addEventListener('submit', function (e) {
-          e.preventDefault();
-          const formData = new FormData(form);
-
-          fetch(window.location.href, {
-            method: 'POST',
-            body: formData
-          })
-          .then(res => {
-            if (res.redirected) {
-              // If redirect is triggered by Flask route
-              window.location.href = res.url;
-            } else {
-              return res.text();
-            }
-          })
-          .then(html => {
-            if (html) {
-              document.getElementById('task-content').innerHTML = html;
-              bindForms(); // rebind after loading new content
-            }
-          });
-        });
-      }
-    }
-
-
-    // 🔁 Optional: Refresh the course sidebar to show updated checkmarks
-    function refreshSidebar() {
-      const currentCourseId = window.location.pathname.split("/")[2];
-      fetch(`/course/${currentCourseId}?partial=1`)
-        .then(res => res.text())
-        fetch(`/course/${courseId}?partial=1`)
-        .then(res => res.text())
-        .then(html => {
-          document.querySelector('#sidebar').innerHTML = html;
-        
-          const newSidebar = tempDiv.querySelector('.col-md-4');
-          if (newSidebar) {
-            document.querySelector('.col-md-4').innerHTML = newSidebar.innerHTML;
-            bindTaskLinks(); // 🔁 rebinding after DOM update
-          }
-        });
-    }
-
-    // Initial binding of task links
     function bindTaskLinks() {
       const taskLinks = document.querySelectorAll('.task-link');
       taskLinks.forEach(link => {
         link.addEventListener('click', function (e) {
           e.preventDefault();
           const url = link.dataset.taskUrl;
-          loadTask(url);
+
+          fetch(url + "?partial=1", {
+            headers: {
+              "X-Requested-With": "XMLHttpRequest"
+            }
+          })
+          .then(res => res.text())
+          .then(html => {
+            contentPane.innerHTML = html;
+            bindAnswerForm(); // rebind after task loads
+            window.history.pushState({}, '', `/course/${courseId}?task=${url.split('/').pop()}`);
+          });
         });
       });
     }
 
-    bindTaskLinks();  // First load
+    function bindAnswerForm() {
+      const form = document.getElementById('answer-form');
+      if (form) {
+        form.addEventListener('submit', function (e) {
+          e.preventDefault();
+          const formData = new FormData(form);
+          const taskId = new URLSearchParams(window.location.search).get("task");
+          const taskUrl = `/task/${taskId}`;
+
+
+          fetch(taskUrl, {
+            method: 'POST',
+            body: formData,
+            headers: {
+              "X-Requested-With": "XMLHttpRequest"
+            }
+          })
+          .then(res => res.text())
+          .then(html => {
+            contentPane.innerHTML = html;
+            bindAnswerForm(); // rebinding in case form remains
+            bindTaskLinks();  // ensure links are reattached
+          });
+        });
+      }
+    }
+
+    bindTaskLinks();
+
+    // Optional: Handle direct access to /course/<id>?task=<task_id>
+    const params = new URLSearchParams(window.location.search);
+    if (params.has('task')) {
+      const initialTaskUrl = `/task/${params.get('task')}`;
+      fetch(initialTaskUrl + "?partial=1", {
+        headers: { "X-Requested-With": "XMLHttpRequest" }
+      })
+      .then(res => res.text())
+      .then(html => {
+        contentPane.innerHTML = html;
+        bindAnswerForm();
+      });
+    }
   });
 </script>
 {% endblock %}

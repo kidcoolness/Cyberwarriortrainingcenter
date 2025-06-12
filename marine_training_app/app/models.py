@@ -5,7 +5,6 @@ from flask_wtf import FlaskForm
 from wtforms import StringField, TextAreaField, SubmitField, BooleanField, SelectField, RadioField
 from wtforms.validators import DataRequired
 import json
-from datetime import datetime
 
 db = SQLAlchemy()
 
@@ -23,9 +22,15 @@ class User(db.Model, UserMixin):
     is_trainer = db.Column(db.Boolean, default=False)
     is_training_manager = db.Column(db.Boolean, default=False)
     is_admin = db.Column(db.Boolean, default=False)
-    platoon = db.Column(db.String(100), nullable=True)
-    mission_element = db.Column(db.String(100), nullable=True)
-    team = db.Column(db.String(100), nullable=True)
+    
+    platoon_id = db.Column(db.Integer, db.ForeignKey("platoon.id"))
+    mission_element_id = db.Column(db.Integer, db.ForeignKey("mission_element.id"))
+    team_id = db.Column(db.Integer, db.ForeignKey("team.id"))
+
+    # Define relationships here (we'll add backrefs from here only)
+    platoon = db.relationship("Platoon", backref="users")
+    mission_element = db.relationship("MissionElement", backref="users")
+    team = db.relationship("Team", backref="users")
     
     def get_roles(self):
         roles = ["Student"]
@@ -35,9 +40,18 @@ class User(db.Model, UserMixin):
             roles.append("Admin")
         return roles
 
+    last_active = db.Column(db.DateTime, default=datetime.utcnow)
+    badges = db.Column(db.String(512), default="")
+    streak_days = db.Column(db.Integer, default=0)
+
+    # Relationships
+    uploads = db.relationship('Upload', backref='user', lazy=True)
+    certificates = db.relationship('Certificate', backref='user', lazy=True)
+    memes = db.relationship('Meme', backref='user', lazy=True)
+
 class Task(db.Model):
     id = db.Column(db.Integer, primary_key=True)
-    course_id = db.Column(db.Integer, db.ForeignKey("course.id"), nullable=False)
+    course_id = db.Column(db.Integer, db.ForeignKey('course.id', ondelete='CASCADE'), nullable=False)
     title = db.Column(db.String(255), nullable=False)
     label = db.Column(db.String(50), nullable=False)  # e.g., "1.0", "1.1", "1.1.1"
     section_label = db.Column(db.String(50), nullable=True)  # deprecated
@@ -49,6 +63,8 @@ class Task(db.Model):
     requires_upload = db.Column(db.Boolean, default=False)
     choices = db.Column(db.Text, nullable=True)  # For MCQ
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    assignments = db.relationship('TaskAssignment', backref='task', cascade='all, delete')
+
     @property
     def number(self):
         return self.label
@@ -60,6 +76,8 @@ class Submission(db.Model):
     submission_text = db.Column(db.Text)
     status = db.Column(db.String(50))  # pending, approved, rejected
     timestamp = db.Column(db.DateTime, default=datetime.utcnow)
+    uploaded_file = db.Column(db.String(256), nullable=True)
+    feedback = db.Column(db.Text, nullable=True)
 
     # ✅ Relationships
     user = db.relationship("User", backref="submissions")
@@ -87,26 +105,26 @@ class Setting(db.Model):
 class TaskAssignment(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=False)
-    task_id = db.Column(db.Integer, db.ForeignKey("task.id"), nullable=False)
+    task_id = db.Column(db.Integer, db.ForeignKey("task.id", ondelete="CASCADE"), nullable=False)  # ✅ ADD ondelete
     status = db.Column(db.String(20), default="incomplete")  # "incomplete", "in progress", "completed"
     assigned_at = db.Column(db.DateTime, default=datetime.utcnow)
 
-    task = db.relationship("Task", backref="assignments")
     user = db.relationship("User", backref="assignments")
 
 class Course(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(255), nullable=False)
     description = db.Column(db.Text, nullable=False)
+    enrollments = db.relationship("CourseEnrollment", backref="course", cascade="all, delete")  # KEEP
+    tasks = db.relationship("Task", backref="course", cascade="all, delete")  # ✅ NEW
 
 class CourseEnrollment(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=False)
-    course_id = db.Column(db.Integer, db.ForeignKey("course.id"), nullable=False)
+    course_id = db.Column(db.Integer, db.ForeignKey("course.id", ondelete="CASCADE"), nullable=False)
     progress = db.Column(db.Integer, default=0)  
     enrolled_at = db.Column(db.DateTime, default=datetime.utcnow)
     completed = db.Column(db.Boolean, default=False)  # ✅ Track if course is completed
-    course = db.relationship("Course", backref="enrollments")
     user = db.relationship("User", backref="enrollments")  # ✅ Avoids circular dependency
 
 class CourseTask(db.Model):
@@ -123,4 +141,63 @@ class Section(db.Model):
     label = db.Column(db.String(50))  # e.g. "1.2"
     title = db.Column(db.String(255))  # e.g. "Analyze Logs"
     sequence = db.Column(db.Integer)
+    name = db.Column(db.String(128), nullable=False)
 
+    module_id = db.Column(db.Integer, db.ForeignKey("module.id"), nullable=False)
+
+class Module(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(128), nullable=False)
+    course_id = db.Column(db.Integer, db.ForeignKey('course.id'), nullable=False)
+    sections = db.relationship("Section", backref="module", lazy=True)
+
+class Upload(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    task_id = db.Column(db.Integer, db.ForeignKey('task.id'), nullable=True)
+    filename = db.Column(db.String(255), nullable=False)
+    upload_time = db.Column(db.DateTime, default=datetime.utcnow)
+    upload_type = db.Column(db.String(50), default='task')  # 'task', 'external_cert', 'meme'
+
+class BugReport(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=True)
+    title = db.Column(db.String(255), nullable=False)
+    description = db.Column(db.Text, nullable=False)
+    status = db.Column(db.String(50), default='open')  # 'open', 'resolved'
+    timestamp = db.Column(db.DateTime, default=datetime.utcnow)
+
+class Meme(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    image_filename = db.Column(db.String(255), nullable=False)
+    votes = db.Column(db.Integer, default=0)
+    timestamp = db.Column(db.DateTime, default=datetime.utcnow)
+
+class Certificate(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    course_id = db.Column(db.Integer, db.ForeignKey('course.id'), nullable=False)
+    awarded_date = db.Column(db.DateTime, default=datetime.utcnow)
+
+class StreakLog(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    date_logged = db.Column(db.Date, default=datetime.utcnow().date)
+
+class Platoon(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(100), unique=True, nullable=False)
+    mission_elements = db.relationship('MissionElement', backref='platoon', lazy=True)
+
+class MissionElement(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(100), nullable=False)
+    platoon_id = db.Column(db.Integer, db.ForeignKey('platoon.id'), nullable=False)
+    teams = db.relationship('Team', backref='mission_element', lazy=True)
+
+
+class Team(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(100), nullable=False)
+    mission_element_id = db.Column(db.Integer, db.ForeignKey('mission_element.id'), nullable=False)

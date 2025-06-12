@@ -1,11 +1,13 @@
 from flask import Blueprint, render_template, request, redirect, url_for, flash
 from flask_login import login_required, current_user
-from .models import db, User, Task, Course, CourseTask, CourseEnrollment
+from .models import db, User, Task, Course, CourseTask, CourseEnrollment, Submission,TaskAssignment, TrainerReview, Platoon, MissionElement, Team
 from flask_wtf import FlaskForm
 from wtforms import StringField, TextAreaField, SubmitField
 from wtforms.validators import DataRequired, Optional
 from .forms import TaskForm, OrgAssignmentForm
 import json
+from .utils import natural_key
+import os
 admin = Blueprint("admin", __name__)
 
 # ✅ Admin Dashboard
@@ -20,15 +22,42 @@ def dashboard():
     return render_template("admin/dashboard.html", users=users, tasks=tasks)
 
 # ✅ Manage Users Page
-@admin.route("admin/manage_users")
+@admin.route("/admin/manage_users")
 @login_required
 def manage_users():
-    if not current_user.is_admin:  # ✅ Use is_admin instead of role
-        flash("Access denied: Admins only.", "danger")
+    if not (current_user.is_admin or current_user.is_training_manager):
+        flash("Access denied.", "danger")
         return redirect(url_for("main.dashboard"))
 
-    users = User.query.all()
+    # If Admin → see all users
+    if current_user.is_admin:
+        users_query = User.query.filter(User.is_student == True)
+
+        # 🚨 Apply scoping if Training Manager (non-admin)
+        if current_user.is_training_manager and not current_user.is_admin:
+            if current_user.platoon_id:
+                users_query = users_query.filter(User.platoon_id == current_user.platoon_id)
+            if current_user.mission_element_id:
+                users_query = users_query.filter(User.mission_element_id == current_user.mission_element_id)
+            if current_user.team_id:
+                users_query = users_query.filter(User.team_id == current_user.team_id)
+
+        users = users_query.all()
+    else:
+        # Training Manager → filter by their assigned Platoon / ME / Team
+        query = User.query
+
+        if current_user.platoon_id:
+            query = query.filter(User.platoon_id == current_user.platoon_id)
+        if current_user.mission_element_id:
+            query = query.filter(User.mission_element_id == current_user.mission_element_id)
+        if current_user.team_id:
+            query = query.filter(User.team_id == current_user.team_id)
+
+        users = query.all()
+
     return render_template("admin/manage_users.html", users=users)
+
 
 # ✅ Update User Role
 @admin.route("admin/update_role/<int:user_id>", methods=["POST"])
@@ -94,7 +123,10 @@ def edit_course(course_id):
         ("api", "TryHackMe API-Graded")
     ]
 
-    tasks = Task.query.filter_by(course_id=course_id).order_by(Task.label).all()
+    tasks = sorted(
+        Task.query.filter_by(course_id=course_id).all(),
+        key=lambda t: natural_key(t.label)
+    )
 
     if form.validate_on_submit():
         course.name = form.name.data
@@ -166,8 +198,6 @@ def create_task(course_id):
 
     return render_template("admin/create_task.html", form=form)
 
-from .forms import TaskForm
-
 @admin.route("/edit_task/<int:task_id>", methods=["GET", "POST"])
 @login_required
 def edit_task(task_id):
@@ -224,19 +254,6 @@ def edit_task(task_id):
         return redirect(url_for("admin.edit_course", course_id=task.course_id))
 
     return render_template("admin/edit_task.html", form=form, task=task, course_id=task.course_id)
-
-@admin.route("/delete_task/<int:task_id>", methods=["POST"])
-@login_required
-def delete_task(task_id):
-    if not current_user.is_admin:
-        flash("Access denied: Admins only.", "danger")
-        return redirect(url_for("main.dashboard"))
-
-    task = Task.query.get_or_404(task_id)
-    db.session.delete(task)
-    db.session.commit()
-    flash("Task deleted successfully!", "success")
-    return redirect(url_for("admin.edit_course", course_id=task.course.id))
 
 class CourseForm(FlaskForm):
     name = StringField("Course Name", validators=[DataRequired()])
@@ -332,3 +349,396 @@ def create_section(course_id):
     flash("✅ Section created!", "success")
     return redirect(url_for("admin.edit_course", course_id=course_id))
 
+@admin.route("/edit_module/<int:module_id>", methods=["GET", "POST"])
+@login_required
+def edit_module(module_id):
+    module = Module.query.get_or_404(module_id)
+    form = EditModuleForm(obj=module)
+    if form.validate_on_submit():
+        module.name = form.name.data
+        db.session.commit()
+        flash("Module updated successfully!", "success")
+        return redirect(request.referrer or url_for("admin.manage_courses"))
+    return render_template("admin/edit_module.html", form=form)
+
+@admin.route("/edit_section/<int:section_id>", methods=["GET", "POST"])
+@login_required
+def edit_section(section_id):
+    section = Section.query.get_or_404(section_id)
+    form = EditSectionForm(obj=section)
+    if form.validate_on_submit():
+        section.name = form.name.data
+        db.session.commit()
+        flash("Section updated successfully!", "success")
+        return redirect(request.referrer or url_for("admin.manage_courses"))
+    return render_template("admin/edit_section.html", form=form)
+
+@admin.route("/edit_label/<int:label_id>", methods=["GET", "POST"])
+@login_required
+def edit_label(label_id):
+    label = Label.query.get_or_404(label_id)
+    form = EditLabelForm(obj=label)
+
+    if form.validate_on_submit():
+        label.label = form.label.data
+        label.name = form.name.data
+        db.session.commit()
+        flash("Label updated successfully!", "success")
+        return redirect(url_for("admin.manage_courses"))
+
+    return render_template("admin/edit_label.html", form=form, label=label)
+
+@admin.route('/edit_module_section/<int:item_id>', methods=['GET', 'POST'])
+@login_required
+def edit_module_section(item_id):
+    if not (current_user.is_trainer or current_user.is_admin or current_user.is_training_manager):
+        abort(403)
+    
+    item = Task.query.get_or_404(item_id)
+    if request.method == 'POST':
+        new_label = request.form.get("label")
+        new_title = request.form.get("title")
+        item.label = new_label
+        item.title = new_title
+        db.session.commit()
+        flash("Module/Section name updated.", "success")
+        return redirect(url_for('admin.manage_courses'))
+
+    return render_template("admin/edit_module_section.html", item=item)
+
+@admin.route("/rename_label", methods=["POST"])
+@login_required
+def rename_label():
+    if not (current_user.is_admin or current_user.is_trainer or current_user.is_training_manager):
+        abort(403)
+
+    label_id = request.form.get("label_id")
+    new_title = request.form.get("new_name")
+    label_type = request.form.get("label_type")
+
+    task = Task.query.get_or_404(label_id)
+
+    if label_type not in ["module", "section"]:
+        flash("Invalid label type", "danger")
+        return redirect(url_for("admin.manage_courses"))
+
+    task.title = new_title
+    db.session.commit()
+    flash(f"{label_type.capitalize()} renamed successfully!", "success")
+
+    return redirect(url_for("admin.edit_course", course_id=task.course_id))
+
+@admin.route("/delete_task/<int:task_id>", methods=["POST"])
+@login_required
+def delete_task(task_id):
+    task = Task.query.get_or_404(task_id)
+    # Delete submissions linked to this task
+    Submission.query.filter_by(task_id=task.id).delete()
+    db.session.delete(task)
+    db.session.commit()
+    flash("Task deleted successfully.", "success")
+    return redirect(url_for("admin.edit_course", course_id=task.course_id))
+
+@admin.route("/delete_section/<int:course_id>/<string:section_label>", methods=["POST"])
+@login_required
+def delete_section(course_id, section_label):
+    # Get all tasks under this section (including the section header itself)
+    tasks_to_delete = Task.query.filter(
+        Task.course_id == course_id,
+        Task.label.startswith(section_label)
+    ).all()
+
+    for task in tasks_to_delete:
+        Submission.query.filter_by(task_id=task.id).delete()
+        db.session.delete(task)
+
+    db.session.commit()
+    flash("Section and all associated tasks deleted.", "success")
+    return redirect(url_for("admin.edit_course", course_id=course_id))
+
+@admin.route("/delete_module/<int:course_id>/<string:module_label>", methods=["POST"])
+@login_required
+def delete_module(course_id, module_label):
+    # Get all tasks under this module (including section headers and tasks)
+    tasks_to_delete = Task.query.filter(
+        Task.course_id == course_id,
+        Task.label.startswith(module_label)
+    ).all()
+
+    for task in tasks_to_delete:
+        Submission.query.filter_by(task_id=task.id).delete()
+        db.session.delete(task)
+
+    db.session.commit()
+    flash("Module and all associated sections and tasks deleted.", "success")
+    return redirect(url_for("admin.edit_course", course_id=course_id))
+
+@admin.route('/trainer/user_tasks', methods=['GET', 'POST'])
+@login_required
+def trainer_user_tasks():
+    if not (current_user.is_trainer or current_user.is_admin or current_user.is_training_manager):
+        abort(403)
+
+    #users = User.query.order_by(User.last_name).all()
+    users = sorted(
+        User.query.all(),
+        key=lambda u: (str(u.name).split()[1] if len(str(u.name).split()) > 1 else "")
+    )
+    
+    return render_template("admin/trainer_user_selector.html", users=users)
+
+@admin.route("/trainer/user_tasks/<int:user_id>")
+@login_required
+def trainer_user_task_view(user_id):
+    if not (current_user.is_admin or current_user.is_training_manager or current_user.is_trainer):
+        abort(403)
+
+    user = User.query.get_or_404(user_id)
+
+    # 🚨 NEW — Apply scoping if Training Manager
+    if current_user.is_training_manager and not current_user.is_admin:
+        if current_user.platoon_id and user.platoon_id != current_user.platoon_id:
+            abort(403)
+        if current_user.mission_element_id and user.mission_element_id != current_user.mission_element_id:
+            abort(403)
+        if current_user.team_id and user.team_id != current_user.team_id:
+            abort(403)
+
+    # Existing logic → no changes needed below this
+    enrollments = CourseEnrollment.query.filter_by(user_id=user.id).all()
+    tasks = Task.query.all()
+    completed_assignments = TaskAssignment.query.filter_by(user_id=user.id, status="completed").all()
+    completed_task_ids = [a.task_id for a in completed_assignments]
+
+    submissions = Submission.query.filter_by(user_id=user.id).all()
+
+    # Build grouped_tasks for template (existing logic unchanged)
+    grouped_tasks = build_grouped_tasks(tasks, enrollments)
+
+    return render_template(
+        "admin/user_task_overview.html",
+        user=user,
+        grouped_tasks=grouped_tasks,
+        completed_task_ids=completed_task_ids,
+        submissions=submissions
+    )
+
+@admin.route("/admin/trainer/mark_task_toggle/<int:user_id>/<int:task_id>", methods=["POST"])
+@login_required
+def toggle_task_completion(user_id, task_id):
+    if not (current_user.is_admin or current_user.is_trainer or current_user.is_training_manager):
+        abort(403)
+
+    action = request.form.get("action")
+    submission = Submission.query.filter_by(user_id=user_id, task_id=task_id).first()
+
+    if action == "complete":
+        if not submission:
+            submission = Submission(user_id=user_id, task_id=task_id, status="completed")
+            db.session.add(submission)
+            assignment = TaskAssignment.query.filter_by(user_id=user_id, task_id=task_id).first()
+            if not assignment:
+                assignment = TaskAssignment(user_id=user_id, task_id=task_id, status="completed")
+                db.session.add(assignment)
+            else:
+                assignment.status = "completed"
+    elif action == "incomplete":
+        if submission:
+            db.session.delete(submission)
+
+    db.session.commit()
+    flash("Task updated successfully.", "success")
+    return redirect(url_for("admin.trainer_user_task_view", user_id=user_id))
+
+@admin.route("/trainer/delete_submission/<int:submission_id>", methods=["POST"])
+@login_required
+def trainer_delete_submission(submission_id):
+    UPLOAD_FOLDER = "/mnt/data/uploads"  # local dev only
+
+    if not current_user.is_trainer and not current_user.is_admin:
+        flash("⚠️ You do not have permission to delete submissions.", "danger")
+        return redirect(url_for("main.dashboard"))
+
+    submission = Submission.query.get_or_404(submission_id)
+
+    # 🔄 Delete uploaded file if it exists
+    if submission.uploaded_file:
+        folder_path = os.path.join(UPLOAD_FOLDER, str(submission.user_id), str(submission.task_id))
+        file_path = os.path.join(folder_path, submission.uploaded_file)
+        if os.path.exists(file_path):
+            os.remove(file_path)
+
+    # 🔄 Delete associated trainer review if it exists
+    review = TrainerReview.query.filter_by(submission_id=submission.id).first()
+    if review:
+        db.session.delete(review)
+
+    # Remove any task completion assignment
+    assignment = TaskAssignment.query.filter_by(user_id=submission.user_id, task_id=submission.task_id).first()
+    if assignment:
+        db.session.delete(assignment)
+
+    db.session.delete(submission)
+    db.session.commit()
+
+    flash("✅ Submission, file, and review deleted successfully.", "success")
+    return redirect(request.referrer or url_for("admin.trainer_dashboard"))
+
+@admin.route('/admin/delete_user/<int:user_id>', methods=['POST'])
+@login_required
+def delete_user(user_id):
+    if not current_user.is_admin:
+        flash("❌ You do not have permission to delete users.", "danger")
+        return redirect(url_for('admin.dashboard'))
+
+    user = User.query.get_or_404(user_id)
+
+    # Optional: Prevent deleting self
+    if user.id == current_user.id:
+        flash("⚠️ You cannot delete your own account from this panel.", "warning")
+        return redirect(url_for('admin.manage_users'))
+
+    db.session.delete(user)
+    db.session.commit()
+    flash(f"🗑️ User {user.name} deleted.", "success")
+    return redirect(url_for('admin.manage_users'))
+
+@admin.route("/admin/edit_user/<int:user_id>", methods=["GET", "POST"])
+@login_required
+def edit_user_assignments(user_id):
+    if not (current_user.is_admin or current_user.is_training_manager):
+        abort(403)
+
+    user = User.query.get_or_404(user_id)
+
+    # Admins can access all; Training Managers are scoped
+    if current_user.is_admin:
+        platoons = Platoon.query.all()
+        mission_elements = MissionElement.query.all()
+        teams = Team.query.all()
+    else:
+        platoons = Platoon.query.filter_by(id=current_user.platoon_id).all()
+        mission_elements = MissionElement.query.filter_by(id=current_user.mission_element_id).all()
+        teams = Team.query.filter_by(id=current_user.team_id).all()
+
+    if request.method == "POST":
+        # Prevent assigning outside your scope unless you're an admin
+        if current_user.is_admin:
+            user.platoon_id = request.form.get("platoon_id") or None
+            user.mission_element_id = request.form.get("mission_element_id") or None
+            user.team_id = request.form.get("team_id") or None
+        else:
+            user.platoon_id = current_user.platoon_id
+            user.mission_element_id = current_user.mission_element_id
+            user.team_id = current_user.team_id
+            user.is_trainer = bool(request.form.get("is_trainer"))
+            user.is_training_manager = bool(request.form.get("is_training_manager"))
+            user.is_admin = bool(request.form.get("is_admin"))
+
+        db.session.commit()
+        flash("✅ User assignment updated.", "success")
+        return redirect(url_for("admin.manage_users"))
+
+    return render_template("admin/edit_user.html", user=user, platoons=platoons, mission_elements=mission_elements, teams=teams)
+
+# ----------------------------
+# MANAGE PLATOONS
+# ----------------------------
+@admin.route("/admin/manage_platoons")
+@login_required
+def manage_platoons():
+    if not current_user.is_admin:
+        abort(403)
+    platoons = Platoon.query.all()
+    return render_template("admin/manage_platoons.html", platoons=platoons)
+
+@admin.route("/admin/create_platoon", methods=["POST"])
+@login_required
+def create_platoon():
+    if not current_user.is_admin:
+        abort(403)
+    name = request.form.get("name")
+    if name:
+        db.session.add(Platoon(name=name))
+        db.session.commit()
+        flash("✅ Platoon created!", "success")
+    return redirect(url_for("admin.manage_platoons"))
+
+@admin.route("/admin/delete_platoon/<int:platoon_id>", methods=["POST"])
+@login_required
+def delete_platoon(platoon_id):
+    if not current_user.is_admin:
+        abort(403)
+    platoon = Platoon.query.get_or_404(platoon_id)
+    db.session.delete(platoon)
+    db.session.commit()
+    flash("✅ Platoon deleted!", "success")
+    return redirect(url_for("admin.manage_platoons"))
+
+# ----------------------------
+# MANAGE MISSION ELEMENTS
+# ----------------------------
+@admin.route("/admin/manage_mission_elements")
+@login_required
+def manage_mission_elements():
+    if not current_user.is_admin:
+        abort(403)
+    mission_elements = MissionElement.query.all()
+    return render_template("admin/manage_mission_elements.html", mission_elements=mission_elements)
+
+@admin.route("/admin/create_mission_element", methods=["POST"])
+@login_required
+def create_mission_element():
+    if not current_user.is_admin:
+        abort(403)
+    name = request.form.get("name")
+    if name:
+        db.session.add(MissionElement(name=name))
+        db.session.commit()
+        flash("✅ Mission Element created!", "success")
+    return redirect(url_for("admin.manage_mission_elements"))
+
+@admin.route("/admin/delete_mission_element/<int:mission_element_id>", methods=["POST"])
+@login_required
+def delete_mission_element(mission_element_id):
+    if not current_user.is_admin:
+        abort(403)
+    mission_element = MissionElement.query.get_or_404(mission_element_id)
+    db.session.delete(mission_element)
+    db.session.commit()
+    flash("✅ Mission Element deleted!", "success")
+    return redirect(url_for("admin.manage_mission_elements"))
+
+# ----------------------------
+# MANAGE TEAMS
+# ----------------------------
+@admin.route("/admin/manage_teams")
+@login_required
+def manage_teams():
+    if not current_user.is_admin:
+        abort(403)
+    teams = Team.query.all()
+    return render_template("admin/manage_teams.html", teams=teams)
+
+@admin.route("/admin/create_team", methods=["POST"])
+@login_required
+def create_team():
+    if not current_user.is_admin:
+        abort(403)
+    name = request.form.get("name")
+    if name:
+        db.session.add(Team(name=name))
+        db.session.commit()
+        flash("✅ Team created!", "success")
+    return redirect(url_for("admin.manage_teams"))
+
+@admin.route("/admin/delete_team/<int:team_id>", methods=["POST"])
+@login_required
+def delete_team(team_id):
+    if not current_user.is_admin:
+        abort(403)
+    team = Team.query.get_or_404(team_id)
+    db.session.delete(team)
+    db.session.commit()
+    flash("✅ Team deleted!", "success")
+    return redirect(url_for("admin.manage_teams"))
