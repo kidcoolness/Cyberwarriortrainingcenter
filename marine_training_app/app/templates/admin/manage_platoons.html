@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+{% block content %}
+<h2>Manage Platoons</h2>
+
+<form method="POST" action="{{ url_for('admin.create_platoon') }}" class="mb-3">
+    <input type="text" name="name" placeholder="Platoon Name" class="form-control mb-2" required>
+    <button type="submit" class="btn btn-primary">Create Platoon</button>
+</form>
+
+<ul class="list-group">
+    {% for p in platoons %}
+    <li class="list-group-item d-flex justify-content-between align-items-center">
+        {{ p.name }}
+        <form method="POST" action="{{ url_for('admin.delete_platoon', platoon_id=p.id) }}" style="display:inline;">
+            <button type="submit" class="btn btn-danger btn-sm">Delete</button>
+        </form>
+    </li>
+    {% endfor %}
+</ul>
+{% endblock %}

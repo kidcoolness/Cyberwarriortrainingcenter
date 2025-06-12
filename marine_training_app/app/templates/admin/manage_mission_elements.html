@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+{% block content %}
+<h2>Manage Mission Elements</h2>
+
+<form method="POST" action="{{ url_for('admin.create_mission_element') }}" class="mb-3">
+    <input type="text" name="name" placeholder="Mission Element Name" class="form-control mb-2" required>
+    <button type="submit" class="btn btn-primary">Create Mission Element</button>
+</form>
+
+<ul class="list-group">
+    {% for m in mission_elements %}
+    <li class="list-group-item d-flex justify-content-between align-items-center">
+        {{ m.name }}
+        <form method="POST" action="{{ url_for('admin.delete_mission_element', mission_element_id=m.id) }}" style="display:inline;">
+            <button type="submit" class="btn btn-danger btn-sm">Delete</button>
+        </form>
+    </li>
+    {% endfor %}
+</ul>
+{% endblock %}

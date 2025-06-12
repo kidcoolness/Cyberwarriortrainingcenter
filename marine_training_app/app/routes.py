@@ -16,6 +16,7 @@ from werkzeug.utils import secure_filename
 import os
 from flask import current_app
 from datetime import datetime
+from flask import send_from_directory
 # Define a Blueprint
 
 main = Blueprint("main", __name__)
@@ -601,53 +602,59 @@ def export_performance():
         flash("Access denied.", "danger")
         return redirect(url_for("main.dashboard"))
 
-    users = User.query.all()
+    # Base query
+    users_query = User.query.filter(User.is_student == True)
 
-    output = StringIO()
-    writer = csv.writer(output)
+    # 🚨 Apply scoping if Training Manager
+    if current_user.is_training_manager and not current_user.is_admin:
+        if current_user.platoon_id:
+            users_query = users_query.filter(User.platoon_id == current_user.platoon_id)
+        if current_user.mission_element_id:
+            users_query = users_query.filter(User.mission_element_id == current_user.mission_element_id)
+        if current_user.team_id:
+            users_query = users_query.filter(User.team_id == current_user.team_id)
 
-    writer.writerow(["Name", "Platoon", "Mission Element", "Team", "Completed Tasks", "Total Tasks", "Percent Complete"])
+    users = users_query.all()
 
-    for user in users:
-        assignments = TaskAssignment.query.filter_by(user_id=user.id).all()
-        total_tasks = len(assignments)
-        completed_tasks = len([a for a in assignments if a.status == "completed"])
-        percent = f"{(completed_tasks / total_tasks * 100):.1f}%" if total_tasks > 0 else "0%"
+    enrollments = CourseEnrollment.query.filter(CourseEnrollment.user_id.in_([u.id for u in users])).all()
 
-        writer.writerow([
-            user.name,
-            user.platoon or "Unassigned",
-            user.mission_element or "Unassigned",
-            user.team or "Unassigned",
-            completed_tasks,
-            total_tasks,
-            percent
-        ])
-
-    response = make_response(output.getvalue())
-    response.headers["Content-Disposition"] = "attachment; filename=performance_by_unit.csv"
-    response.headers["Content-type"] = "text/csv"
-    return response
+    return render_template(
+        "admin/export_report.html",
+        users=users,
+        enrollments=enrollments
+    )
 
 @main.route("/review_submissions")
 @login_required
 def review_submissions():
     if not (current_user.is_trainer or current_user.is_admin or current_user.is_training_manager):
-        flash("Access denied.", "danger")
-        return redirect(url_for("main.dashboard"))
+        abort(403)
 
-    pending = Submission.query.filter_by(status='pending').order_by(Submission.timestamp.desc()).all()
-    approved = Submission.query.filter_by(status='approved').order_by(Submission.timestamp.desc()).all()
-    rejected = Submission.query.filter_by(status='rejected').order_by(Submission.timestamp.desc()).all()
+    # Admins and Trainers see all submissions
+    if current_user.is_admin or current_user.is_trainer:
+        submissions = Submission.query.order_by(Submission.timestamp.desc()).all()
+    elif current_user.is_training_manager:
+        # Training Managers only see users from their structure
+        filters = []
 
-    return render_template(
-        "trainer/review_submissions.html",
-        pending=pending,
-        approved=approved,
-        rejected=rejected
-    )
+        if current_user.platoon_id:
+            filters.append(User.platoon_id == current_user.platoon_id)
+        if current_user.mission_element_id:
+            filters.append(User.mission_element_id == current_user.mission_element_id)
+        if current_user.team_id:
+            filters.append(User.team_id == current_user.team_id)
 
-from flask import send_from_directory
+        submissions = (
+            Submission.query
+            .join(User)
+            .filter(db.or_(*filters))
+            .order_by(Submission.timestamp.desc())
+            .all()
+        )
+    else:
+        submissions = []
+
+    return render_template("trainer/review_submissions.html", submissions=submissions)
 
 UPLOAD_FOLDER = "/mnt/data/uploads"  # for local dev
 @main.route('/uploads/<int:user_id>/<int:task_id>/<filename>')
@@ -660,7 +667,6 @@ def download_submission(user_id, task_id, filename):
         return f"❌ File not found: {file_path}", 404
 
     return send_from_directory(folder_path, filename, as_attachment=True)
-
 
 @main.route("/delete_submission/<int:task_id>", methods=["POST"])
 @login_required
@@ -683,7 +689,6 @@ def delete_submission(task_id):
         flash("⚠️ No submission found to delete.", "warning")
 
     return redirect(url_for("main.task_detail", task_id=task_id))
-
 
 @main.route("/delete_upload/<int:task_id>", methods=["POST"])
 @login_required
