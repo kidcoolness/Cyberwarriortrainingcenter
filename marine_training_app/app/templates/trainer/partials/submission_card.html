@@ -1,0 +1,42 @@
+<div class="card mb-3">
+    <div class="card-body">
+      <h5>{{ sub.user.name }}</h5>
+      <p>
+        Platoon: {{ sub.user.platoon.name if sub.user.platoon else "None" }}<br>
+        Mission Element: {{ sub.user.mission_element.name if sub.user.mission_element else "None" }}<br>
+        Team: {{ sub.user.team.name if sub.user.team else "None" }}<br>
+      </p>
+  
+      <p>
+        <strong>Task:</strong> {{ sub.task.label }} - {{ sub.task.title }}<br>
+        <strong>Submitted:</strong> {{ sub.timestamp.strftime('%Y-%m-%d %H:%M') }}
+      </p>
+  
+      <p>
+        {{ sub.submission_text }}
+        {% if sub.uploaded_file %}
+          <br><strong>Uploaded File:</strong>
+          <a href="{{ url_for('main.download_submission', user_id=sub.user.id, task_id=sub.task.id, filename=sub.uploaded_file) }}" target="_blank">
+            {{ sub.uploaded_file }}
+          </a>
+        {% endif %}
+      </p>
+  
+      <!-- Review Form -->
+      <form method="POST" action="{{ url_for('main.review_submission', submission_id=sub.id) }}">
+        <textarea name="feedback" class="form-control mb-2" placeholder="Feedback">{{ sub.feedback }}</textarea>
+        <button name="action" value="approve" class="btn btn-success btn-sm">Approve</button>
+        <button name="action" value="reject" class="btn btn-danger btn-sm">Reject</button>
+        <button name="action" value="update" class="btn btn-secondary btn-sm">Update Feedback Only</button>
+      </form>
+  
+      <!-- Delete Submission -->
+      <form method="POST" action="{{ url_for('admin.trainer_delete_submission', submission_id=sub.id) }}" style="margin-top: 8px;">
+        <button type="submit" class="btn btn-outline-danger btn-sm"
+                onclick="return confirm('Are you sure you want to delete this submission and its upload?')">
+          ❌ Delete
+        </button>
+      </form>
+    </div>
+  </div>
+  

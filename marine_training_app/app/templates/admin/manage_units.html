@@ -1,0 +1,99 @@
+{% extends 'base.html' %}
+{% block content %}
+<h2>Manage Units</h2>
+
+<!-- Add form -->
+<form method="POST" class="mb-4">
+  <div class="row">
+    <div class="col-md-4">
+      <label>Entity Type:</label>
+      <select name="entity_type" id="entityTypeSelect" class="form-select" onchange="toggleDropdowns()">
+        <option value="platoon">Platoon</option>
+        <option value="mission_element">Mission Element</option>
+        <option value="team">Team</option>
+      </select>
+    </div>
+
+    <div class="col-md-6">
+      <label>Name:</label>
+      <input type="text" name="name" class="form-control" placeholder="Name" required>
+    </div>
+
+    <!-- Platoon dropdown for Mission Element -->
+    <div class="col-md-6 mt-2" id="platoonDropdown" style="display: none;">
+      <label>Select Platoon for Mission Element:</label>
+      <select name="platoon_id" class="form-select">
+        <option value="">-- Select Platoon --</option>
+        {% for p in platoons %}
+          <option value="{{ p.id }}">{{ p.name }}</option>
+        {% endfor %}
+      </select>
+    </div>
+
+    <!-- Mission Element dropdown for Team -->
+    <div class="col-md-6 mt-2" id="missionElementDropdown" style="display: none;">
+      <label>Select Mission Element for Team:</label>
+      <select name="mission_element_id" class="form-select">
+        <option value="">-- Select Mission Element --</option>
+        {% for me in mission_elements %}
+          <option value="{{ me.id }}">{{ me.name }}</option>
+        {% endfor %}
+      </select>
+    </div>
+
+    <div class="col-md-2 mt-2">
+      <label>&nbsp;</label>
+      <button type="submit" class="btn btn-success w-100">Add</button>
+    </div>
+  </div>
+</form>
+
+<hr>
+
+<!-- Lists -->
+<h4>Platoons</h4>
+<ul class="list-group mb-3">
+  {% for p in platoons %}
+    <li class="list-group-item d-flex justify-content-between align-items-center">
+      {{ p.name }}
+      <form method="POST" action="{{ url_for('admin.delete_unit', entity_type='platoon', entity_id=p.id) }}" onsubmit="return confirm('Delete this Platoon?');">
+        <button type="submit" class="btn btn-danger btn-sm">❌ Delete</button>
+      </form>
+    </li>
+  {% endfor %}
+</ul>
+
+<h4>Mission Elements</h4>
+<ul class="list-group mb-3">
+  {% for me in mission_elements %}
+    <li class="list-group-item d-flex justify-content-between align-items-center">
+      {{ me.name }} (Platoon: {{ me.platoon.name }})
+      <form method="POST" action="{{ url_for('admin.delete_unit', entity_type='mission_element', entity_id=me.id) }}" onsubmit="return confirm('Delete this Mission Element?');">
+        <button type="submit" class="btn btn-danger btn-sm">❌ Delete</button>
+      </form>
+    </li>
+  {% endfor %}
+</ul>
+
+<h4>Teams</h4>
+<ul class="list-group mb-3">
+  {% for t in teams %}
+    <li class="list-group-item d-flex justify-content-between align-items-center">
+      {{ t.name }} (Mission Element: {{ t.mission_element.name }})
+      <form method="POST" action="{{ url_for('admin.delete_unit', entity_type='team', entity_id=t.id) }}" onsubmit="return confirm('Delete this Team?');">
+        <button type="submit" class="btn btn-danger btn-sm">❌ Delete</button>
+      </form>
+    </li>
+  {% endfor %}
+</ul>
+
+<!-- JS -->
+<script>
+function toggleDropdowns() {
+  const entityType = document.getElementById("entityTypeSelect").value;
+  document.getElementById("platoonDropdown").style.display = (entityType === "mission_element") ? "block" : "none";
+  document.getElementById("missionElementDropdown").style.display = (entityType === "team") ? "block" : "none";
+}
+</script>
+
+{% endblock %}

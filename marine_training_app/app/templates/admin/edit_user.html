@@ -5,7 +5,7 @@
 <form method="POST">
   <div class="mb-3">
     <label for="platoon">Platoon</label>
-    <select name="platoon_id" id="platoon_id" class="form-select">
+    <select name="platoon_id" class="form-select">
       <option value="">-- None --</option>
       {% for p in platoons %}
         <option value="{{ p.id }}" {% if user.platoon_id == p.id %}selected{% endif %}>{{ p.name }}</option>
@@ -32,18 +32,20 @@
       {% endfor %}
     </select>
   </div>
-  <h3>Roles</h3>
-  <div class="form-check">
-      <input class="form-check-input" type="checkbox" name="is_admin" {% if user.is_admin %}checked{% endif %}>
-      <label class="form-check-label">Admin</label>
+
+  <!-- ✅ New Roles Section -->
+  <h4>Roles</h4>
+  <div class="form-check mb-2">
+    <input type="checkbox" name="is_trainer" class="form-check-input" id="trainer" {% if user.is_trainer %}checked{% endif %}>
+    <label class="form-check-label" for="trainer">Trainer</label>
   </div>
-  <div class="form-check">
-      <input class="form-check-input" type="checkbox" name="is_trainer" {% if user.is_trainer %}checked{% endif %}>
-      <label class="form-check-label">Trainer</label>
+  <div class="form-check mb-2">
+    <input type="checkbox" name="is_admin" class="form-check-input" id="admin" {% if user.is_admin %}checked{% endif %}>
+    <label class="form-check-label" for="admin">Admin</label>
   </div>
-  <div class="form-check">
-      <input class="form-check-input" type="checkbox" name="is_training_manager" {% if user.is_training_manager %}checked{% endif %}>
-      <label class="form-check-label">Training Manager</label>
+  <div class="form-check mb-3">
+    <input type="checkbox" name="is_training_manager" class="form-check-input" id="tm" {% if user.is_training_manager %}checked{% endif %}>
+    <label class="form-check-label" for="tm">Training Manager</label>
   </div>
 
   <button type="submit" class="btn btn-success">Save Changes</button>

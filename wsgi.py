@@ -7,6 +7,7 @@ sys.path.append(os.path.abspath(os.path.dirname(__file__)))
 
 app = create_app()
 
+
 #app.jinja_env.globals['natural_key'] = natural_key
 
 if __name__ == "__main__":

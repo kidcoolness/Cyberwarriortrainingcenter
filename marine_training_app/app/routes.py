@@ -367,15 +367,50 @@ def trainer_dashboard():
 @main.route("/training_panel")
 @login_required
 def training_panel():
-    if not (current_user.is_trainer or current_user.is_admin):  # ✅ Allow Admins and Trainers
-        flash("Access denied: Trainers and Admins only.", "danger")
+    if not (current_user.is_admin or current_user.is_training_manager or current_user.is_trainer):
+        flash("Access denied.", "danger")
         return redirect(url_for("main.dashboard"))
 
-    marines = User.query.filter((User.is_student == True) | (User.is_trainer == True)).all()  # ✅ Include Trainers
-    courses = Course.query.all()
-    enrollments = db.session.query(CourseEnrollment, User, Course).join(User, CourseEnrollment.user_id == User.id).join(Course, CourseEnrollment.course_id == Course.id).all()
+    # Fetch marines to display in dropdown
+    if current_user.is_admin:
+        marines = User.query.filter_by(is_student=True).order_by(User.name).all()
+    else:
+        if not current_user.platoon_id:
+            flash("⚠️ You must be assigned to a Platoon.", "danger")
+            return redirect(url_for("main.dashboard"))
+        marines = User.query.filter_by(
+            is_student=True,
+            platoon_id=current_user.platoon_id
+        ).order_by(User.name).all()
 
-    return render_template("training_panel.html", marines=marines, courses=courses, enrollments=enrollments)
+    # Fetch courses
+    courses = Course.query.order_by(Course.name).all()
+
+    # Fetch enrollments for display
+    if current_user.is_admin:
+        enrollments = (
+            db.session.query(CourseEnrollment, User, Course)
+            .join(User, CourseEnrollment.user_id == User.id)
+            .join(Course, CourseEnrollment.course_id == Course.id)
+            .order_by(User.name)
+            .all()
+        )
+    else:
+        enrollments = (
+            db.session.query(CourseEnrollment, User, Course)
+            .join(User, CourseEnrollment.user_id == User.id)
+            .join(Course, CourseEnrollment.course_id == Course.id)
+            .filter(User.platoon_id == current_user.platoon_id)
+            .order_by(User.name)
+            .all()
+        )
+
+    return render_template(
+        "training_panel.html",
+        marines=marines,
+        courses=courses,
+        enrollments=enrollments
+    )
 
 @main.route("/enroll_marines", methods=["POST"])
 @login_required
@@ -595,66 +630,55 @@ def review_submission(submission_id):
     flash("✅ Submission review updated.", "success")
     return redirect(url_for("main.review_submissions"))
 
-@main.route("/export/performance")
-@login_required
-def export_performance():
-    if not (current_user.is_admin or current_user.is_training_manager):
-        flash("Access denied.", "danger")
-        return redirect(url_for("main.dashboard"))
-
-    # Base query
-    users_query = User.query.filter(User.is_student == True)
-
-    # 🚨 Apply scoping if Training Manager
-    if current_user.is_training_manager and not current_user.is_admin:
-        if current_user.platoon_id:
-            users_query = users_query.filter(User.platoon_id == current_user.platoon_id)
-        if current_user.mission_element_id:
-            users_query = users_query.filter(User.mission_element_id == current_user.mission_element_id)
-        if current_user.team_id:
-            users_query = users_query.filter(User.team_id == current_user.team_id)
-
-    users = users_query.all()
-
-    enrollments = CourseEnrollment.query.filter(CourseEnrollment.user_id.in_([u.id for u in users])).all()
-
-    return render_template(
-        "admin/export_report.html",
-        users=users,
-        enrollments=enrollments
-    )
-
 @main.route("/review_submissions")
 @login_required
 def review_submissions():
     if not (current_user.is_trainer or current_user.is_admin or current_user.is_training_manager):
-        abort(403)
+        flash("Access denied.", "danger")
+        return redirect(url_for("main.dashboard"))
 
-    # Admins and Trainers see all submissions
-    if current_user.is_admin or current_user.is_trainer:
-        submissions = Submission.query.order_by(Submission.timestamp.desc()).all()
-    elif current_user.is_training_manager:
-        # Training Managers only see users from their structure
-        filters = []
+    # Default: no platoon restriction for admin
+    if current_user.is_admin:
+        pending_submissions = Submission.query.filter_by(status='pending').order_by(Submission.timestamp.desc()).all()
+        approved_submissions = Submission.query.filter_by(status='approved').order_by(Submission.timestamp.desc()).all()
+        rejected_submissions = Submission.query.filter_by(status='rejected').order_by(Submission.timestamp.desc()).all()
 
-        if current_user.platoon_id:
-            filters.append(User.platoon_id == current_user.platoon_id)
-        if current_user.mission_element_id:
-            filters.append(User.mission_element_id == current_user.mission_element_id)
-        if current_user.team_id:
-            filters.append(User.team_id == current_user.team_id)
+    else:
+        # Trainers & Training Managers - filter by platoon
+        platoon_id = current_user.platoon_id
+        if platoon_id is None:
+            flash("⚠️ You must be assigned to a Platoon to review submissions.", "danger")
+            return redirect(url_for("main.dashboard"))
 
-        submissions = (
+        pending_submissions = (
             Submission.query
-            .join(User)
-            .filter(db.or_(*filters))
+            .join(User, Submission.user_id == User.id)
+            .filter(User.platoon_id == platoon_id, Submission.status == 'pending')
             .order_by(Submission.timestamp.desc())
             .all()
         )
-    else:
-        submissions = []
+        approved_submissions = (
+            Submission.query
+            .join(User, Submission.user_id == User.id)
+            .filter(User.platoon_id == platoon_id, Submission.status == 'approved')
+            .order_by(Submission.timestamp.desc())
+            .all()
+        )
+        rejected_submissions = (
+            Submission.query
+            .join(User, Submission.user_id == User.id)
+            .filter(User.platoon_id == platoon_id, Submission.status == 'rejected')
+            .order_by(Submission.timestamp.desc())
+            .all()
+        )
 
-    return render_template("trainer/review_submissions.html", submissions=submissions)
+    return render_template(
+        "trainer/review_submissions.html",
+        pending_submissions=pending_submissions,
+        approved_submissions=approved_submissions,
+        rejected_submissions=rejected_submissions
+    )
+
 
 UPLOAD_FOLDER = "/mnt/data/uploads"  # for local dev
 @main.route('/uploads/<int:user_id>/<int:task_id>/<filename>')
@@ -711,3 +735,29 @@ def delete_uploaded_file(task_id):
         flash("⚠️ No uploaded file found.", "warning")
 
     return redirect(url_for("main.task_detail", task_id=task_id))
+
+@main.route("/export_performance")
+@login_required
+def export_performance():
+    flash("🚧 Export Performance feature not implemented yet.", "warning")
+    return redirect(url_for("main.dashboard"))
+
+@main.route("/test_email")
+@login_required
+def test_email():
+    from marine_training_app.app import mail  # adjust to your actual app structure
+    from flask_mail import Message
+    print("We made it Mom!")
+    msg = Message(
+        subject="🚨 Test Email from Marine Training Portal",
+        recipients=[current_user.email],
+        body="This is a test email. If you received it, your SMTP setup is working! – Semper Fi."
+    )
+    print(current_user.email)
+    try:
+        mail.send(msg)
+        flash("✅ Test email sent successfully!", "success")
+    except Exception as e:
+        flash(f"❌ Failed to send test email: {e}", "danger")
+    
+    return redirect(url_for("main.dashboard"))
