@@ -371,18 +371,46 @@ def training_panel():
         flash("Access denied.", "danger")
         return redirect(url_for("main.dashboard"))
 
+    # Fetch marines to display in dropdown
     if current_user.is_admin:
-        # Admin sees all users
-        users = User.query.order_by(User.name).all()
+        marines = User.query.filter_by(is_student=True).order_by(User.name).all()
     else:
-        # Trainers / Training Managers see only users in their Platoon
         if not current_user.platoon_id:
             flash("⚠️ You must be assigned to a Platoon.", "danger")
             return redirect(url_for("main.dashboard"))
+        marines = User.query.filter_by(
+            is_student=True,
+            platoon_id=current_user.platoon_id
+        ).order_by(User.name).all()
 
-        users = User.query.filter_by(platoon_id=current_user.platoon_id).order_by(User.name).all()
+    # Fetch courses
+    courses = Course.query.order_by(Course.name).all()
 
-    return render_template("training_panel.html", users=users)
+    # Fetch enrollments for display
+    if current_user.is_admin:
+        enrollments = (
+            db.session.query(CourseEnrollment, User, Course)
+            .join(User, CourseEnrollment.user_id == User.id)
+            .join(Course, CourseEnrollment.course_id == Course.id)
+            .order_by(User.name)
+            .all()
+        )
+    else:
+        enrollments = (
+            db.session.query(CourseEnrollment, User, Course)
+            .join(User, CourseEnrollment.user_id == User.id)
+            .join(Course, CourseEnrollment.course_id == Course.id)
+            .filter(User.platoon_id == current_user.platoon_id)
+            .order_by(User.name)
+            .all()
+        )
+
+    return render_template(
+        "training_panel.html",
+        marines=marines,
+        courses=courses,
+        enrollments=enrollments
+    )
 
 @main.route("/enroll_marines", methods=["POST"])
 @login_required

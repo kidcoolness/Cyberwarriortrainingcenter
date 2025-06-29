@@ -10,7 +10,7 @@ from .uploads import uploads
 from .bugs import bugs
 from .memes import memes
 from itsdangerous import URLSafeTimedSerializer
-
+import os
 #from .utils import natural_key  # or .utils if same-level
 
 migrate = Migrate()
@@ -24,13 +24,13 @@ def load_user(user_id):
 def create_app():
     app = Flask(__name__)
     app.config.from_object(Config)
-
+    app.config['MAIL_PASSWORD'] = os.environ.get('GMAIL_APP_PASSWORD')
+    
     #fdyu gkci lvjo kpvx
     app.config['MAIL_SERVER'] = 'smtp.gmail.com'
     app.config['MAIL_PORT'] = 587
     app.config['MAIL_USE_TLS'] = True
     app.config['MAIL_USERNAME'] = 'cyberwarriortrainingcenter@gmail.com'
-    app.config['MAIL_PASSWORD'] = 'fdyu gkci lvjo kpvx'
     app.config['MAIL_DEFAULT_SENDER'] = 'cyberwarriortrainingcenter@gmail.com'
    
     serializer = URLSafeTimedSerializer(app.config['SECRET_KEY'])
