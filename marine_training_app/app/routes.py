@@ -382,7 +382,7 @@ def training_panel():
 
         users = User.query.filter_by(platoon_id=current_user.platoon_id).order_by(User.name).all()
 
-    return render_template("trainer/training_panel.html", users=users)
+    return render_template("training_panel.html", users=users)
 
 @main.route("/enroll_marines", methods=["POST"])
 @login_required
