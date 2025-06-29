@@ -4,6 +4,7 @@ from flask_login import login_user, logout_user, login_required, current_user
 from .models import db, User
 from .forms import LoginForm, RegistrationForm
 
+
 auth = Blueprint("auth", __name__)
 
 @auth.route("/login", methods=["GET", "POST"])
@@ -58,3 +59,42 @@ def logout():
     logout_user()
     flash("You have been logged out.", "info")
     return redirect(url_for("auth.login"))
+
+@auth.route("/reset_password_request", methods=["GET", "POST"])
+def reset_password_request():
+    if request.method == "POST":
+        email = request.form.get("email").strip()
+        user = User.query.filter_by(email=email).first()
+        if user:
+            token = serializer.dumps(user.email, salt='reset-password')
+            if user:
+                token = s.dumps(user.email, salt='password-reset')
+                send_reset_email(user, token)
+            reset_link = url_for('auth.reset_password', token=token, _external=True)
+            # TODO: Replace this print with actual email sending
+            print(f"[DEBUG] Password reset link: {reset_link}")
+            flash("A password reset link has been sent to your email.", "info")
+        else:
+            flash("No user found with that email.", "danger")
+        return redirect(url_for("auth.login"))
+
+    return render_template("auth/reset_password_request.html")
+
+@auth.route("/reset_password/<token>", methods=["GET", "POST"])
+def reset_password(token):
+    try:
+        email = serializer.loads(token, salt='reset-password', max_age=3600)
+    except Exception:
+        flash("The password reset link is invalid or has expired.", "danger")
+        return redirect(url_for("auth.reset_password_request"))
+
+    user = User.query.filter_by(email=email).first_or_404()
+
+    if request.method == "POST":
+        new_password = request.form.get("password").strip()
+        user.password_hash = bcrypt.generate_password_hash(new_password).decode('utf-8')
+        db.session.commit()
+        flash("✅ Your password has been updated! You can now log in.", "success")
+        return redirect(url_for("auth.login"))
+
+    return render_template("auth/reset_password.html", token=token)

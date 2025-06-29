@@ -367,15 +367,22 @@ def trainer_dashboard():
 @main.route("/training_panel")
 @login_required
 def training_panel():
-    if not (current_user.is_trainer or current_user.is_admin):  # ✅ Allow Admins and Trainers
-        flash("Access denied: Trainers and Admins only.", "danger")
+    if not (current_user.is_admin or current_user.is_training_manager or current_user.is_trainer):
+        flash("Access denied.", "danger")
         return redirect(url_for("main.dashboard"))
 
-    marines = User.query.filter((User.is_student == True) | (User.is_trainer == True)).all()  # ✅ Include Trainers
-    courses = Course.query.all()
-    enrollments = db.session.query(CourseEnrollment, User, Course).join(User, CourseEnrollment.user_id == User.id).join(Course, CourseEnrollment.course_id == Course.id).all()
+    if current_user.is_admin:
+        # Admin sees all users
+        users = User.query.order_by(User.name).all()
+    else:
+        # Trainers / Training Managers see only users in their Platoon
+        if not current_user.platoon_id:
+            flash("⚠️ You must be assigned to a Platoon.", "danger")
+            return redirect(url_for("main.dashboard"))
 
-    return render_template("training_panel.html", marines=marines, courses=courses, enrollments=enrollments)
+        users = User.query.filter_by(platoon_id=current_user.platoon_id).order_by(User.name).all()
+
+    return render_template("trainer/training_panel.html", users=users)
 
 @main.route("/enroll_marines", methods=["POST"])
 @login_required
@@ -705,4 +712,24 @@ def delete_uploaded_file(task_id):
 @login_required
 def export_performance():
     flash("🚧 Export Performance feature not implemented yet.", "warning")
+    return redirect(url_for("main.dashboard"))
+
+@main.route("/test_email")
+@login_required
+def test_email():
+    from marine_training_app.app import mail  # adjust to your actual app structure
+    from flask_mail import Message
+    print("We made it Mom!")
+    msg = Message(
+        subject="🚨 Test Email from Marine Training Portal",
+        recipients=[current_user.email],
+        body="This is a test email. If you received it, your SMTP setup is working! – Semper Fi."
+    )
+    print(current_user.email)
+    try:
+        mail.send(msg)
+        flash("✅ Test email sent successfully!", "success")
+    except Exception as e:
+        flash(f"❌ Failed to send test email: {e}", "danger")
+    
     return redirect(url_for("main.dashboard"))
