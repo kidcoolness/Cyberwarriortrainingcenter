@@ -1,6 +1,6 @@
 from flask import Blueprint, render_template, request, redirect, url_for, flash
 from flask_login import login_required, current_user
-from .models import db, User, Task, Course, CourseTask, CourseEnrollment, Submission,TaskAssignment, TrainerReview, Platoon, MissionElement, Team
+from .models import db, User, Task, Course, CourseTask, CourseEnrollment, Submission,TaskAssignment, TrainerReview, Platoon, MissionElement, Team, Module, Section
 from flask_wtf import FlaskForm
 from wtforms import StringField, TextAreaField, SubmitField
 from wtforms.validators import DataRequired, Optional
@@ -115,13 +115,13 @@ def edit_course(course_id):
     task_form = TaskForm()
 
     # Populate grading_type choices if needed dynamically
-    task_form.grading_type.choices = [
+    TaskForm.grading_type.choices = [
         ("auto", "Auto-Graded (Text)"),
         ("mcq", "Auto-Graded (Multiple Choice)"),
         ("trainer", "Trainer-Graded"),
-        ("api", "TryHackMe API-Graded")
+        ("api", "TryHackMe API-Graded"),
+        ("ai","AI Grading")
     ]
-
     tasks = sorted(
         Task.query.filter_by(course_id=course_id).all(),
         key=lambda t: natural_key(t.label)
@@ -144,9 +144,27 @@ def delete_course(course_id):
         return redirect(url_for("main.dashboard"))
 
     course = Course.query.get_or_404(course_id)
+
+    # 🗑️ First delete tasks
+    Task.query.filter_by(course_id=course.id).delete()
+    # 🗑️ Then delete sections (if you have a Section model)
+    try:
+        from .models import Section
+        Section.query.filter_by(course_id=course.id).delete()
+    except ImportError:
+        pass
+    # 🗑️ Then delete modules (if you have a Module model)
+    try:
+        from .models import Module
+        Module.query.filter_by(course_id=course.id).delete()
+    except ImportError:
+        pass
+
+    # 🗑️ Now delete the course itself
     db.session.delete(course)
     db.session.commit()
-    flash("Course deleted successfully!", "success")
+
+    flash("✅ Course and all related items deleted successfully!", "success")
     return redirect(url_for("admin.manage_courses"))
 
 from .forms import TaskForm
@@ -217,11 +235,12 @@ def edit_task(task_id):
     form.parent_label.choices = parent_choices
 
     # ✅ Refill grading type choices
-    form.grading_type.choices = [
+    TaskForm.grading_type.choices = [
         ("auto", "Auto-Graded (Text)"),
         ("mcq", "Auto-Graded (Multiple Choice)"),
         ("trainer", "Trainer-Graded"),
-        ("api", "TryHackMe API-Graded")
+        ("api", "TryHackMe API-Graded"),
+        ("ai","AI Grading")
     ]
 
     # ✅ Load saved MCQ options
@@ -639,6 +658,7 @@ def edit_user_assignments(user_id):
 # ----------------------------
 # MANAGE PLATOONS
 # ----------------------------
+
 @admin.route("/admin/manage_platoons")
 @login_required
 def manage_platoons():
@@ -807,4 +827,98 @@ def delete_unit(entity_type, entity_id):
     flash(f"✅ {entity_type.replace('_', ' ').title()} deleted.", "success")
     return redirect(url_for("admin.manage_units"))
 
+@admin.route('/admin/mass_create_course', methods=['GET', 'POST'])
+@login_required
+def mass_create_course():
+    # if not current_user.is_admin or current_user.is_training_manager:
+    #     flash("Access denied.", "danger")
+    #     return redirect(url_for('main.dashboard'))
+
+    if request.method == 'POST':
+        raw = request.form.get('bulk_input')
+        lines = raw.strip().split('\n')
+
+        course_title = ""
+        description = ""
+        course = None
+        modules = {}
+        for line in lines:
+            stripped = line.strip()
+            if not stripped:
+                continue
+
+            if stripped.startswith("Course Title:"):
+                course_title = stripped.split("Course Title:")[1].strip()
+                course = Course(name=course_title, description="")
+                db.session.add(course)
+                db.session.commit()
+                continue
+
+            label = stripped.split(' ')[0]
+            title = stripped[len(label):].strip()
+
+            # Module: ends with .0
+            if label.count('.') == 1 and label.endswith('.0'):
+                module = Module(course_id=course.id, name=title)
+                db.session.add(module)
+                db.session.commit()
+                modules[label] = module
+
+            # Section: one dot, not ending in .0
+            elif label.count('.') == 1 and not label.endswith('.0') and '|' not in stripped:
+                parent_label = label.rsplit('.', 1)[0] + ".0"
+                parent_module = modules.get(parent_label)
+                if not parent_module:
+                    flash(f"⚠️ Could not find parent module for section {label}", "warning")
+                    continue
+                section = Section(
+                    course_id=course.id,  # ✅ FIX: pass course_id
+                    module_id=parent_module.id,
+                    label=label,
+                    name=title
+                )
+                db.session.add(section)
+                db.session.commit()
+                modules[label] = section
+
+            # Task: two dots + |
+            elif label.count('.') == 2 and '|' in stripped:
+                parts = stripped.split('|')
+                label_title = parts[0].strip()
+                grading_type = parts[1].strip()
+                correct_answer = parts[2].strip() if len(parts) > 2 else None
+
+                task_label, task_title = label_title.split(' ', 1)
+                parent_label = task_label.rsplit('.', 1)[0]
+                parent_section = modules.get(parent_label)
+
+                task = Task(
+                    label=task_label,
+                    title=task_title,
+                    course_id=course.id,
+                    section_label=parent_section.id if parent_section else None,
+                    grading_type=grading_type,
+                    correct_answer=correct_answer if grading_type == "auto" else None,
+                    requires_upload=(grading_type == "upload")
+                )
+                db.session.add(task)
+
+        db.session.commit()
+        flash(f"✅ Course '{course_title}' and tasks added.", "success")
+        return redirect(url_for('admin.dashboard'))
+
+    else:
+        return render_template('admin/mass_create_course.html')
+
+@admin.route('/admin/submit_mass_course', methods=['POST'])
+@login_required
+def submit_mass_course():
+    if not current_user.is_admin:
+        flash("Access denied", "danger")
+        return redirect(url_for('main.dashboard'))
+
+    raw_input = request.form.get('course_input')
+    # Use same parser logic we discussed earlier to split and create Course, Module, Section, Task
+    # ...
+    return redirect(url_for('admin.dashboard'))
 

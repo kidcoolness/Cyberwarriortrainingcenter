@@ -38,8 +38,10 @@ class TaskForm(FlaskForm):
             ("auto", "Auto-Graded (Text)"),
             ("mcq", "Auto-Graded (Multiple Choice)"),
             ("trainer", "Trainer-Graded"),
-            ("api", "TryHackMe API-Graded")
+            ("api", "TryHackMe API-Graded"),
+            ("ai", "AI Auto-grading")
         ]
+
     
     correct_answer = StringField("Correct Answer", description="Case-sensitive answer.")
     mcq_choices = TextAreaField("MCQ Options (One per line)", description="Only used for MCQ tasks.")

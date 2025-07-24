@@ -9,4 +9,7 @@ gunicorn==21.2.0
 python-dotenv==1.0.1
 werkzeug==2.2.3
 Flask-Uploads==0.2.1
-psycopg2
+psycopg2-binary>=2.9
+
+Flask-Mail
+openai

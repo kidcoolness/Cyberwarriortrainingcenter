@@ -13,12 +13,9 @@ def login():
     if form.validate_on_submit():
         user = User.query.filter_by(email=form.email.data).first()
 
-        if not user or not check_password_hash(user.password_hash, form.password
-
-.data):
+        if not user or not check_password_hash(user.password_hash, form.password.data):
             flash("Invalid email or password.", "danger")
             return redirect(url_for("auth.login"))
-
         login_user(user)
         flash("Login successful!", "success")
         return redirect(url_for("main.dashboard"))

@@ -3,7 +3,7 @@ from flask_login import UserMixin
 from datetime import datetime
 from flask_wtf import FlaskForm
 from wtforms import StringField, TextAreaField, SubmitField, BooleanField, SelectField, RadioField
-from wtforms.validators import DataRequired
+from wtforms.validators import DataRequired, Optional
 import json
 
 db = SQLAlchemy()
@@ -68,7 +68,7 @@ class Task(db.Model):
     @property
     def number(self):
         return self.label
-    
+  
 class Submission(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey("user.id"))
@@ -78,6 +78,7 @@ class Submission(db.Model):
     timestamp = db.Column(db.DateTime, default=datetime.utcnow)
     uploaded_file = db.Column(db.String(256), nullable=True)
     feedback = db.Column(db.Text, nullable=True)
+    is_correct = db.Column(db.Boolean, default=False)
 
     # ✅ Relationships
     user = db.relationship("User", backref="submissions")
@@ -142,7 +143,6 @@ class Section(db.Model):
     title = db.Column(db.String(255))  # e.g. "Analyze Logs"
     sequence = db.Column(db.Integer)
     name = db.Column(db.String(128), nullable=False)
-
     module_id = db.Column(db.Integer, db.ForeignKey("module.id"), nullable=False)
 
 class Module(db.Model):
@@ -195,7 +195,6 @@ class MissionElement(db.Model):
     name = db.Column(db.String(100), nullable=False)
     platoon_id = db.Column(db.Integer, db.ForeignKey('platoon.id'), nullable=False)
     teams = db.relationship('Team', backref='mission_element', lazy=True)
-
 
 class Team(db.Model):
     id = db.Column(db.Integer, primary_key=True)
