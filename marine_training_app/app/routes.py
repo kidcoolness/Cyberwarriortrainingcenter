@@ -6,7 +6,7 @@ from .models import db, User, CourseEnrollment, CourseTask, TaskAssignment, Cour
 from collections import defaultdict
 import json
 from sqlalchemy.orm import joinedload
-from .utils import calculate_progress, natural_key
+from .utils import calculate_progress, natural_key, grade_with_ai
 import csv
 from io import StringIO
 from flask import make_response
@@ -96,10 +96,13 @@ def task_detail(task_id):
     if task.grading_type == "mcq" and task.choices:
         try:
             mcq_form.answer.choices = [(c, c) for c in json.loads(task.choices)]
-        except Exception as e:
+        except Exception:
             mcq_form.answer.choices = []
 
     if request.method == "POST":
+        # -----------------------------
+        # AUTO GRADED
+        # -----------------------------
         if task.grading_type == "auto" and form.validate_on_submit():
             user_answer = form.answer.data.strip()
             if task.correct_answer and user_answer.lower() == task.correct_answer.strip().lower():
@@ -112,6 +115,9 @@ def task_detail(task_id):
             else:
                 result = "incorrect"
 
+        # -----------------------------
+        # MCQ
+        # -----------------------------
         elif task.grading_type == "mcq" and mcq_form.validate_on_submit():
             user_answer = mcq_form.answer.data.strip()
             if user_answer == task.correct_answer:
@@ -124,6 +130,9 @@ def task_detail(task_id):
             else:
                 result = "incorrect"
 
+        # -----------------------------
+        # TRAINER-GRADED
+        # -----------------------------
         elif task.grading_type == "trainer":
             answer_text = request.form.get("answer", "").strip()
             uploaded_file = request.files.get("file")
@@ -155,10 +164,52 @@ def task_detail(task_id):
                 db.session.commit()
                 flash("✅ Submission sent for trainer review.", "success")
 
-    existing_submission = Submission.query.filter_by(user_id=current_user.id, task_id=task.id).first()
+        # -----------------------------
+        # AI-GRADED
+        # -----------------------------
+        elif task.grading_type == "ai" and form.validate_on_submit():
+            user_answer = form.answer.data.strip()
+            ai_result = grade_with_ai(task.title, task.correct_answer or "", user_answer)
 
+            if existing_submission:
+                existing_submission.submission_text = user_answer
+                existing_submission.status = 'completed' if ai_result.get("correct") else 'incomplete'
+                existing_submission.feedback = ai_result.get("feedback", "")
+                existing_submission.is_correct = ai_result.get("correct", False)
+            else:
+                submission = Submission(
+                    user_id=current_user.id,
+                    task_id=task.id,
+                    submission_text=user_answer,
+                    status='completed' if ai_result.get("correct") else 'incomplete',
+                    feedback=ai_result.get("feedback", ""),
+                    is_correct=ai_result.get("correct", False)
+                )
+                db.session.add(submission)
+
+            if ai_result.get("correct"):
+                if not assignment:
+                    db.session.add(TaskAssignment(user_id=current_user.id, task_id=task.id, status="completed"))
+                else:
+                    assignment.status = "completed"
+
+            db.session.commit()
+            flash(
+                f"🤖 AI Graded: {'✅ Correct' if ai_result.get('correct') else '❌ Incorrect'} – {ai_result.get('feedback','')}",
+                "info"
+            )
+            return redirect(url_for('main.dashboard'))
+
+    # Refresh submission after processing
+    existing_submission = Submission.query.filter_by(user_id=current_user.id, task_id=task.id).first()
+    # Pre-fill answer form for auto/AI
+    if existing_submission and task.grading_type in ["auto", "ai"]:
+        form.answer.data = existing_submission.submission_text
+        
+    # Handle AJAX partial requests
     if request.headers.get("X-Requested-With") == "XMLHttpRequest" or request.args.get("partial") == "1":
-        return render_template("partials/task_content.html",
+        return render_template(
+            "partials/task_content.html",
             task=task,
             form=form,
             mcq_form=mcq_form,
@@ -169,7 +220,8 @@ def task_detail(task_id):
             inside_course=True
         )
     else:
-        return render_template("task_wrapper.html",
+        return render_template(
+            "task_wrapper.html",
             task=task,
             form=form,
             mcq_form=mcq_form,
@@ -678,7 +730,6 @@ def review_submissions():
         approved_submissions=approved_submissions,
         rejected_submissions=rejected_submissions
     )
-
 
 UPLOAD_FOLDER = "/mnt/data/uploads"  # for local dev
 @main.route('/uploads/<int:user_id>/<int:task_id>/<filename>')

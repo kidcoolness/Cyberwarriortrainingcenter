@@ -20,7 +20,7 @@
       <div class="alert alert-danger">❌ Incorrect. Try again.</div>
     {% endif %}
 
-    {% if task.grading_type == "auto" %}
+    {% if task.grading_type == "auto" or task.grading_type == "ai" %}
       <form method="POST" action="{{ url_for('main.task_detail', task_id=task.id) }}" id="answer-form">
         {{ form.hidden_tag() }}
         <div class="mb-3">
@@ -48,6 +48,20 @@
     {% elif task.grading_type == "trainer" %}
       <form method="POST" action="{{ url_for('main.task_detail', task_id=task.id) }}" enctype="multipart/form-data" id="answer-form">
         {{ trainer_form.hidden_tag() }}
+
+    {# ------------------- AI-GRADED ------------------- #}
+    {% elif task.grading_type == "ai" %}
+      <div class="alert alert-info mb-3">
+        🤖 <strong>AI‑Graded Task:</strong> Your answer will be evaluated by our AI assistant.
+      </div>
+      <form method="POST" action="{{ url_for('main.task_detail', task_id=task.id) }}" id="ai-answer-form">
+        {{ form.hidden_tag() }}
+        <div class="mb-3">
+          {{ form.answer.label(class="form-label") }}
+          {{ form.answer(class="form-control") }}
+        </div>
+        <button type="submit" class="btn btn-success">Submit for AI Grading</button>
+      </form>
 
         <div class="mb-3">
           <label for="submission_text" class="form-label">Enter your answer for trainer review:</label>

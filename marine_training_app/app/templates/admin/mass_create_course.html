@@ -1,0 +1,64 @@
+{% extends 'base.html' %}
+{% block title %}Mass Course Builder{% endblock %}
+{% block content %}
+<h2>📋 Real-Time Course Builder</h2>
+
+<div class="alert alert-info mb-3">
+  <strong>Syntax Guide:</strong><br>
+  <code>Course Title: My Course</code><br>
+  <code>1.0 Module Title</code><br>
+  <code>1.1 Section Title</code><br>
+  <code>1.1.1 Task Title | auto | Expected Answer</code><br>
+  <small>
+    • 1 dot = Module<br>
+    • 2 dots (no <code>|</code>) = Section<br>
+    • 2 dots (with <code>|</code>) = Task
+  </small>
+</div>
+
+<form method="POST" action="{{ url_for('admin.mass_create_course') }}">
+  <div class="mb-3">
+    <label for="bulk_input">Paste Course Structure Below:</label>
+    <textarea id="bulk_input" name="bulk_input" rows="20" class="form-control" placeholder="Paste here..."></textarea>
+  </div>
+
+  <h4>🧠 Live Preview</h4>
+  <div id="preview_area" class="border p-3 bg-light" style="white-space: pre-line;"></div>
+
+  <button type="submit" class="btn btn-success mt-3">Submit</button>
+</form>
+
+<script>
+  const textarea = document.getElementById("bulk_input");
+  const preview = document.getElementById("preview_area");
+  textarea.addEventListener("input", () => {
+  const lines = textarea.value.split("\n");
+  let html = "";
+  lines.forEach(line => {
+    const trimmed = line.trim();
+    if (!trimmed) return;
+
+    if (trimmed.startsWith("Course Title:")) {
+      html += `<h3>📘 ${trimmed.replace("Course Title:", "").trim()}</h3>`;
+    } else {
+      const label = trimmed.split(" ")[0];
+      // Task (two dots and has '|')
+      if (label.split(".").length - 1 === 2 && trimmed.includes("|")) {
+        const parts = trimmed.split("|").map(p => p.trim());
+        html += `<div class="ms-3">📝 <strong>${parts[0]}</strong> – ${parts[1] || ''}</div>`;
+      }
+      // Module (ends with .0)
+      else if (label.split(".").length - 1 === 1 && label.endsWith(".0")) {
+        html += `<h4>📦 Module: ${trimmed}</h4>`;
+      }
+      // Section (one dot, not ending in .0, no '|')
+      else if (label.split(".").length - 1 === 1 && !label.endsWith(".0") && !trimmed.includes("|")) {
+        html += `<div><strong>📂 Section:</strong> ${trimmed}</div>`;
+      }
+    }
+  });
+  preview.innerHTML = html || "<em>No content to preview yet.</em>";
+});
+
+</script>
+{% endblock %}
